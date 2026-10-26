@@ -27,8 +27,8 @@ LADDER_LABELS = {"lff": "LfF (base)", "ours_eq9": "+ unlearning step in training
 
 
 class Table:
-    def __init__(self, name, header, caption=""):
-        self.name, self.header, self.caption, self.rows = name, header, caption, []
+    def __init__(self, name, header, caption="", groups=None):
+        self.name, self.header, self.caption, self.rows, self.groups = name, header, caption, [], groups
 
     def add(self, cells, bold=()):
         self.rows.append((cells, set(bold)))
@@ -42,10 +42,22 @@ class Table:
 
     def latex(self):
         def tex(c, b):
+            m = re.fullmatch(r"(-?[\d.]+) ± ([\d.]+)(.*)", c)
+            if m:
+                main = f"\\textbf{{{m[1]}}}" if b else m[1]
+                return f"{main}{{\\scriptsize$\\pm${m[2]}}}" + m[3].replace("%", "\\%")
             c = c.replace("±", "$\\pm$").replace("%", "\\%").replace("Δ", "$\\Delta$").replace("−", "$-$")
             return f"\\textbf{{{c}}}" if b else c
-        lines = ["\\begin{tabular}{l" + "c" * (len(self.header) - 1) + "}", "\\toprule",
-                 " & ".join(tex(h, False) for h in self.header) + " \\\\", "\\midrule"]
+        lines = ["\\begin{tabular}{l" + "c" * (len(self.header) - 1) + "}", "\\toprule"]
+        if self.groups:
+            cells, rules, col = [], [], 1
+            for label, span in self.groups:
+                cells.append(f"\\multicolumn{{{span}}}{{c}}{{{label}}}" if label else " & ".join([""] * span) if span > 1 else "")
+                if label:
+                    rules.append(f"\\cmidrule(lr){{{col}-{col + span - 1}}}")
+                col += span
+            lines += [" & ".join(cells) + " \\\\", "".join(rules)]
+        lines += [" & ".join(tex(h, False) for h in self.header) + " \\\\", "\\midrule"]
         for cells, bold in self.rows:
             lines.append(" & ".join(tex(c, i in bold) for i, c in enumerate(cells)) + " \\\\")
         return "\n".join(lines + ["\\bottomrule", "\\end{tabular}"]) + "\n"
@@ -87,6 +99,23 @@ def main_tables(predictions):
             cells = [RUNS[m]["label"] + CITE[m], labels] + [fmt(cols[b][m]) for b in MAIN]
             bold = [2 + i for i, b in enumerate(MAIN) if len(cols[b][m]) and best[b] is not None
                     and abs(cols[b][m].mean() - best[b]) < 1e-9 and labels != "all"]
+            t.add(cells, bold)
+        t.save()
+    for name, pair in (("main_conf_worst", (("conflicting", "Bias-conflicting"), ("worst", "Worst-group"))),
+                       ("main_aligned_unbiased", (("aligned", "Bias-aligned"), ("unbiased", "Unbiased")))):
+        cols = {(k, b): {m: values(predictions, m, b, k) for m, _ in MAIN_METHODS} for k, _ in pair for b in MAIN}
+        best = {kb: max((v.mean() for m, v in c.items() if len(v) and dict(MAIN_METHODS)[m] != "all"), default=None)
+                for kb, c in cols.items()}
+        t = Table(name, ["Method", "Labels"] + [SHORT_TITLES[b] for _ in pair for b in MAIN],
+                  groups=[("", 2)] + [(title, len(MAIN)) for _, title in pair])
+        for m, labels in MAIN_METHODS:
+            cells, bold = [RUNS[m]["label"] + CITE[m], labels], []
+            for k, _ in pair:
+                for b in MAIN:
+                    v = cols[(k, b)][m]
+                    if len(v) and best[(k, b)] is not None and abs(v.mean() - best[(k, b)]) < 1e-9 and labels != "all":
+                        bold.append(len(cells))
+                    cells.append(fmt(v))
             t.add(cells, bold)
         t.save()
 
