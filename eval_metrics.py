@@ -10,7 +10,8 @@ and optionally baseline, benchmark, seed, best_step, selection_split, selection_
 
 Reported metric: bias-conflicting accuracy = mean accuracy over the (label, bias) cells whose
 bias differs from the class's aligned bias. Cells are averaged with equal weight, so large
-conflicting cells do not dominate small ones.
+conflicting cells do not dominate small ones. Also reported: aligned accuracy (same, over the
+aligned cells) and worst-group accuracy (the lowest cell).
 
 Usage:
     python eval_metrics.py logs/*/*/seed*/test_predictions.npz --out results/results.csv --summary
@@ -25,7 +26,8 @@ import numpy as np
 
 COLUMNS = [
     "baseline", "benchmark", "seed", "selection_split", "best_step",
-    "selection_conflicting_acc", "test_conflicting_acc", "n_conflicting_test", "path",
+    "selection_conflicting_acc", "test_conflicting_acc", "n_conflicting_test",
+    "test_aligned_acc", "test_worst_group_acc", "path",
 ]
 
 
@@ -76,6 +78,9 @@ def evaluate_file(path):
     row.update(run_info(path, result))
     row["test_conflicting_acc"] = 100 * acc
     row["n_conflicting_test"] = int(count[conflicting].sum())
+    aligned = ~conflicting & (count > 0)
+    row["test_aligned_acc"] = 100 * accs[aligned].mean() if aligned.any() else ""
+    row["test_worst_group_acc"] = 100 * np.nanmin(accs[count > 0])
     row["path"] = path
     if row["selection_conflicting_acc"] != "":
         row["selection_conflicting_acc"] = 100 * row["selection_conflicting_acc"]

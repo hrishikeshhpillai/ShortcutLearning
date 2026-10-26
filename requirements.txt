@@ -1,0 +1,8 @@
+torch==2.5.1
+torchvision==0.20.1
+numpy==2.2.5
+matplotlib==3.10.9
+pyarrow==25.0.0
+pillow==12.2.0
+huggingface_hub==0.36.2
+gdown==6.4.2

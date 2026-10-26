@@ -99,3 +99,147 @@ cd learning-not-to-learn && python protocol.py --dataset cmnist --percent 1pct -
 # rebuild the results table
 python eval_metrics.py logs/*/*/seed*/test_predictions.npz --out results/results.csv --summary
 ```
+
+---
+
+# Our model: LfF + FMD
+
+We combine **LfF** (Nam et al., NeurIPS 2020) with **FMD**, *Fast Model DeBias with Machine Unlearning* (Chen et al., NeurIPS 2023). LfF trains the debiased classifier; FMD then removes the bias that is left by unlearning it from the last layer, in one Newton step. FMD has no official code; ours is in `lff_fmd/`.
+
+## Method
+
+1. **LfF** as in Baseline1: a biased model trained with generalized cross-entropy, and a debiased model trained with per-sample weights `l_b / (l_b + l_d)`. Same backbones and hyperparameters as the table above (LfF's configs; LDD's BFFHQ setting).
+2. **Counterfactual pairs** `(c, c̄)`: `c` is a bias-aligned training sample, `c̄` has the same label and a different bias value.
+   - Colored MNIST: `c̄` is `c` with the digit redrawn in another bias color (the release colors digits as intensity × a fixed palette color, so this counterfactual is exact). k = 5,000 pairs, FMD's setting.
+   - CelebA: FMD's recipe: same `Blond_Hair`, opposite `Male`, the partner with the most agreeing attributes among the other 38. k = 200, FMD's setting.
+   - Corrupted CIFAR-10, BFFHQ: no way to change the bias of an image, so `c̄` is the most similar (ImageNet ResNet-18 features) same-label bias-conflicting training sample. k = 1,000.
+   - Building the pairs needs bias labels for these k samples. LfF alone needs none; LNTL needs them for the whole training set.
+3. **Unlearning** (FMD Eq. 9) on the last linear layer θ = [W b]: θ ← θ + H⁻¹ Σᵢ (∇L(cᵢ) − ∇L(c̄ᵢ)), i.e. remove the influence of `c` and add that of `c̄`. H is the exact Hessian of the debiased model's own training loss, the LfF-weighted cross-entropy, in closed form from the penultimate features (checked against autograd in `lff_fmd/test_fmd.py`).
+4. **Our change to FMD: "favored" pairing.** Eq. 9 always unlearns the bias-aligned member, which assumes the model prefers the bias. LfF often **over-corrects**: it fits the conflicting samples better than the aligned ones (Colored MNIST: 64% aligned vs. 71% conflicting test accuracy). Eq. 9 then moves the model further away from balance and *raises* FMD's own bias measure. For each pair we therefore unlearn whichever member the model currently fits better and learn the other. On a biased model this is exactly Eq. 9. Eq. 9 itself is kept as an ablation.
+5. **Step size.** FMD gives none, and H is singular (softmax is shift-invariant), so we add damping λ = γ · mean(diag H) and take a step of relative length r: θ ← θ + r‖θ‖ d/‖d‖. γ ∈ {0.001, 0.01, 0.1, 1}, r ∈ {0, 0.005, …, 2}. Both are chosen on validation conflicting accuracy (BFFHQ: test, as above), r = 0 included. Ties are broken on validation aligned accuracy: the validation sets have only 45–58 conflicting samples (Colored MNIST, Corrupted CIFAR-10), so many steps tie, and among them we take the least biased.
+
+FMD costs seconds on top of LfF: one pass to extract features, then linear algebra on a matrix of at most 1,026 × 1,026.
+
+## Setup differences from Baseline1
+
+- **Seeds 0, 1, 2** (Baseline1 used seed 0 only). Tables below are mean ± std.
+- **LfF is our own re-run**, from `lff_fmd/train.py`, which follows `LfF/train.py` with the GPU-side data pipeline. It scores higher than the Baseline1 LfF run on Colored MNIST (seed 0: 73.25 vs. 65.03; 3-seed mean 70.57) and similar elsewhere. Both runs are inside the published spread (61.89 ± 4.97, LDD paper), so we compare LfF + FMD against our own re-run, which is its starting point.
+- **CelebA backbone**: LfF trains its linear head on a frozen ImageNet ResNet-18 kept in train mode, so BatchNorm adapts to CelebA. We re-estimate BN statistics on the CelebA training set once and cache the features (and their horizontal flips, LfF's only augmentation). CelebA images come from the `flwrlabs/celeba` mirror (official Drive files can no longer be downloaded directly); split sizes and blond-men counts match the official ones exactly.
+- New metrics in `eval_metrics.py`: **aligned accuracy** and **worst-group accuracy** (lowest (label, bias) cell). "Unbiased accuracy" below is the mean over all cells.
+
+All tables: `results/analysis_tables.md`; per-run rows: `results/results_lff_fmd.csv`.
+
+## 1. Comparative
+
+Test bias-conflicting accuracy (%), mean ± std over 3 seeds; Baseline1 rows are seed 0.
+
+| | Colored MNIST 1% | Corrupted CIFAR-10 1% | BFFHQ 0.5% | CelebA |
+|---|---|---|---|---|
+| LDD (Baseline1) | **72.55** | 26.07 | 66.00 | failed |
+| LNTL (Baseline1) | 66.90 | 17.71 | 56.60 | 69.95 |
+| LfF (Baseline1) | 65.03 | **38.07** | 64.60 | 79.93 |
+| Vanilla ERM | 34.95 ± 2.35 | 10.09 ± 1.43 | 57.40 ± 2.05 | 61.50 ± 4.16 |
+| LfF (our re-run) | 70.57 ± 1.95 | 36.64 ± 1.46 | 65.67 ± 1.04 | **81.13 ± 0.43** |
+| **LfF + FMD (ours)** | 71.24 ± 1.76 | 36.89 ± 1.42 | **66.00 ± 1.02** | 80.80 ± 1.30 |
+
+| LfF → LfF + FMD | Colored MNIST | Corrupted CIFAR-10 | BFFHQ | CelebA |
+|---|---|---|---|---|
+| aligned acc | 63.63 → **70.89** | 59.77 → **63.13** | 87.13 → **88.73** | 81.70 → **83.21** |
+| worst-group acc | 7.29 → **30.20** | 3.00 → 3.33 | 58.40 → **61.87** | 66.41 → **69.58** |
+| unbiased acc (all cells) | 69.88 → **71.21** | 38.95 → **39.52** | 76.40 → **77.37** | 81.41 → **82.01** |
+| FMD's counterfactual bias | lower in 3/3 seeds | lower in 3/3 | lower in 2/3 | lower in 3/3 |
+
+- **On the headline metric FMD adds little.** Conflicting accuracy rises by 0.25–0.67 points on three benchmarks and falls by 0.33 on CelebA. All changes are well inside one standard deviation across seeds.
+- **What FMD does do is undo LfF's over-correction.** Aligned, worst-group and unbiased accuracy improve on all four benchmarks, and FMD's counterfactual bias drops in 11 of 12 runs. The clearest case is Colored MNIST: LfF leaves a whole aligned cell almost unlearned (blue 6s, see §3), FMD recovers it, and worst-group accuracy goes from 7% to 30%.
+- **Against the other baselines**, LfF + FMD ties LDD for the best BFFHQ number (66.00) and is above every Baseline1 run on CelebA (LDD failed there), though below our own LfF re-run. It is behind LDD on Colored MNIST, and behind the Baseline1 LfF run on Corrupted CIFAR-10 (38.07, within one standard deviation of our 36.89). Backbones differ between methods (see Baselines above).
+
+## 2. Ablation
+
+Test conflicting accuracy (%), mean ± std over 3 seeds; aligned accuracy in the second table.
+
+| Variant | Colored MNIST | Corrupted CIFAR-10 | BFFHQ | CelebA |
+|---|---|---|---|---|
+| **LfF + FMD (full)** | 71.24 ± 1.76 | 36.89 ± 1.42 | 66.00 ± 1.02 | 80.80 ± 1.30 |
+| remove FMD (= LfF) | 70.57 ± 1.95 | 36.64 ± 1.46 | 65.67 ± 1.04 | 81.13 ± 0.43 |
+| remove LfF (FMD on vanilla) | 40.51 ± 3.53 | 13.25 ± 2.91 | 58.07 ± 1.89 | 64.22 ± 6.35 |
+| remove both (vanilla) | 34.95 ± 2.35 | 10.09 ± 1.43 | 57.40 ± 2.05 | 61.50 ± 4.16 |
+| FMD's original Eq. 9 direction (no favored pairing) | 70.64 ± 1.89 | 36.61 ± 1.42 | 66.47 ± 0.74 | 83.25 ± 0.84 |
+| no Hessian (plain gradient step, H = I) | 70.59 ± 2.10 | 36.75 ± 1.58 | 65.93 ± 1.23 | 81.67 ± 0.57 |
+| Hessian without the LfF weights | 71.06 ± 2.36 | 36.50 ± 1.62 | 65.93 ± 0.94 | 80.80 ± 0.53 |
+| matched real pairs instead of recolored digits | 70.91 ± 1.89 | – | – | – |
+
+| Aligned accuracy (%) | Colored MNIST | Corrupted CIFAR-10 | BFFHQ | CelebA |
+|---|---|---|---|---|
+| **LfF + FMD (full)** | 70.89 ± 3.51 | 63.13 ± 5.93 | 88.73 ± 4.49 | 83.21 ± 1.88 |
+| remove FMD (= LfF) | 63.63 ± 2.82 | 59.77 ± 4.00 | 87.13 ± 3.90 | 81.70 ± 1.53 |
+| FMD's original Eq. 9 direction | 62.27 ± 2.59 | 59.47 ± 3.50 | 86.27 ± 4.51 | **66.80 ± 1.10** |
+| no Hessian (H = I) | 64.90 ± 1.16 | 60.40 ± 3.34 | 88.00 ± 4.65 | 85.71 ± 1.38 |
+| Hessian without the LfF weights | 64.70 ± 3.68 | 62.37 ± 3.89 | 87.20 ± 3.96 | 82.50 ± 2.35 |
+
+- **LfF carries the conflicting accuracy.** FMD on a vanilla model helps (+5.6, +3.2, +0.7, +2.7 points) but stays far below LfF: a single last-layer step cannot undo a shortcut that the features themselves encode (Colored MNIST vanilla aligned accuracy stays at 99.6%).
+- **Favored pairing vs. Eq. 9.** Eq. 9 has the higher conflicting accuracy on CelebA (83.25) only because it pushes LfF's over-correction further: aligned accuracy drops from 81.7 to 66.8. The conflicting-accuracy protocol rewards this. On Colored MNIST and BFFHQ, Eq. 9 also lowers aligned accuracy, and on Colored MNIST it raises FMD's own bias measure (seed 1: 0.318 → 0.332). Favored pairing is the only variant that improves both groups everywhere.
+- **The Hessian matters little at this scale.** Without H (plain gradient step) the results are similar to, and on CelebA aligned accuracy better than, the full model. With a single linear layer, the damping and step search absorb most of what H⁻¹ does. Dropping the LfF weights from H is also within noise.
+- **Number of pairs.** k from 50 to 5,000 changes conflicting accuracy by at most 0.7 points (figure below). k = 50 is enough. So the pairs, and the bias labels they need, can be few.
+- **Pair type.** On Colored MNIST, matched real pairs give the same conflicting accuracy as exact recolored counterfactuals (70.91 vs. 71.24), and slightly higher aligned accuracy (72.43 vs. 70.89).
+
+![k sweep](figures/ablation_k_sweep.png)
+
+## 3. Case study: where LfF + FMD does badly
+
+![accuracy along the FMD step](figures/case_step_tradeoff.png)
+
+*Test accuracy along the FMD step r (seed 0, the chosen damping); the dashed line is the selected step.*
+
+- **The step size is a cliff.** Accuracy is flat for small r, improves slightly, then collapses (Colored MNIST, BFFHQ and CelebA past r ≈ 1). The selected step usually sits just before the cliff: on BFFHQ it is right at the edge (r = 1), selected on test, so its gain should not be taken at face value. With validation sets of 45–58 conflicting samples, choosing r is the weakest part of the method.
+
+![per-cell change](figures/case_cell_change.png)
+
+*Change in test accuracy per (label, bias) cell, LfF → LfF + FMD, mean over 3 seeds. Outlined squares are the aligned cells.*
+
+- **Colored MNIST:** almost all of the gain is one aligned cell. LfF misclassifies most blue 6s (it has learned "blue → not 6"), and FMD repairs that cell by about +40 points. The cost is small losses in a few conflicting cells (blue digits that are not 6, e.g. 0 and 2 in blue).
+- **Corrupted CIFAR-10:** gains in the label-7 row and several aligned cells; losses in conflicting cells such as label 6 with corruption 4 (−7 points). The net change in conflicting accuracy is +0.25, so FMD mostly moves errors between cells rather than removing them.
+- **BFFHQ:** FMD helps young men (+3.3) and young women (+2.4) but **hurts old women** (67.3 → 64.7), a bias-conflicting cell and the one that matters most here:
+
+  | BFFHQ test accuracy (%) | young, female | young, male | old, female | old, male |
+  |---|---|---|---|---|
+  | LfF | 86.7 | 64.0 | **67.3** | 87.6 |
+  | LfF + FMD | 89.1 | 67.3 | 64.7 | 88.4 |
+
+- **CelebA:** FMD lowers accuracy on **blond men** (90.2 → 88.5), the rarest group (1,387 training images), and raises it on non-blond men (66.4 → 69.6). Seeds 1 and 2 lose 0.9–1.0 conflicting points. LfF's own failure mode on CelebA, predicting "blond" too often (as in Baseline1), is only partly fixed: non-blond women stay at 73%.
+
+  | CelebA test accuracy (%) | not blond, female | not blond, male | blond, female | blond, male |
+  |---|---|---|---|---|
+  | Vanilla ERM | 75.8 | 66.2 | 48.9 | 47.2 |
+  | LfF | 72.1 | 66.4 | 97.0 | **90.2** |
+  | LfF + FMD | 73.1 | 69.6 | 96.8 | 88.5 |
+
+![failures](figures/case_failures.png)
+
+*The most confident bias-conflicting test errors of LfF + FMD (seed 0).*
+
+- **Confident errors remain.** Many errors are made with probability ≥ 0.97. On Colored MNIST and Corrupted CIFAR-10 they are mostly hard images: badly drawn digits, and heavily corrupted images (snow-like, pixelated) where the object is barely visible. A last-layer edit cannot fix those.
+- **CelebA's worst errors look like label noise.** All eight are women with platinum, grey or light-blonde hair labeled *not blond*. Part of what remains on CelebA is the annotation, not the model.
+- **BFFHQ's worst errors** are older women predicted *young*, often with light hair or make-up. These are the old-female cell that FMD made worse.
+
+## Takeaways
+
+- LfF + FMD is never worse than LfF by more than noise on the protocol's metric, and it consistently reduces LfF's over-correction (aligned, worst-group and unbiased accuracy up on all four benchmarks) for a few seconds of extra compute.
+- FMD's Eq. 9 is not safe to apply to an already-debiased model: it assumes the model favors the bias, and with LfF it can increase bias. Choosing the direction per pair fixes this.
+- The protocol metric (conflicting accuracy alone) rewards over-correction; aligned or worst-group accuracy should be reported next to it.
+- Gains on conflicting accuracy are within seed noise; three seeds and small validation sets limit what can be claimed.
+
+## Reproducing LfF + FMD
+
+Environment: `env260801` (PyTorch 2.5.1). Data: `data/` as above, plus `data/CelebA/parquet/` (from `huggingface.co/datasets/flwrlabs/celeba`).
+
+```bash
+# everything: LfF + vanilla training (3 seeds, GPUs 0 and 1), all FMD variants, tables and figures; restart-safe
+setsid nohup bash lff_fmd/legacy/run_all.sh >> logs/run_all.log 2>&1 &
+bash lff_fmd/status.sh                                     # progress
+
+# single pieces
+python lff_fmd/train.py --benchmark cmnist_1pct --method lff --seed 0
+python lff_fmd/fmd.py --benchmark cmnist_1pct --seed 0 --name lff_fmd
+python lff_fmd/test_fmd.py                                 # closed-form Hessian vs. autograd
+python lff_fmd/analysis.py                                 # results_lff_fmd.csv, analysis_tables.md, figures/
+```

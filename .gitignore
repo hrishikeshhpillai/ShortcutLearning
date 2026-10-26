@@ -2,6 +2,12 @@
 /data/
 /logs/
 /logs_diag/
+# symlinks to the data disk (a trailing slash would not match a symlink)
+/data
+/logs
+# upstream baseline code, cloned separately
+/LfF
+/Learning-Debiased-Disentangled
 
 # General
 .DS_Store
@@ -251,3 +257,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# reproduction layout
+models/*/checkpoints/
+outputs/cache/

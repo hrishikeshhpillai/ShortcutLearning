@@ -1,0 +1,14 @@
+\begin{tabular}{lccccc}
+\toprule
+Method & Bias labels & CMNIST & C-CIFAR10 & CelebA & BFFHQ \\
+\midrule
+Vanilla (ERM) & none & 35.0 $\pm$ 2.4 & 10.1 $\pm$ 1.4 & 61.5 $\pm$ 4.2 & 57.4 $\pm$ 2.0 \\
+JTT~\cite{liu2021jtt} & none & 60.7 $\pm$ 3.9 & 16.2 $\pm$ 0.8 & 76.1 $\pm$ 0.8 & 55.9 $\pm$ 1.8 \\
+LDD~\cite{lee2021ldd} & none & 76.2 $\pm$ 1.7 & 29.1 $\pm$ 2.4 & – & 61.5 $\pm$ 2.1 \\
+LfF~\cite{nam2020lff} & none & 70.6 $\pm$ 2.0 & 36.6 $\pm$ 1.5 & \textbf{81.1 $\pm$ 0.4} & \textbf{65.7 $\pm$ 1.0} \\
+FMD~\cite{chen2023fmd} & pairs & 40.5 $\pm$ 3.5 & 13.2 $\pm$ 2.9 & 64.2 $\pm$ 6.3 & 58.1 $\pm$ 1.9 \\
+LNTL~\cite{kim2019lntl} & all & 44.7 $\pm$ 1.4 & 10.7 $\pm$ 0.8 & 68.1 $\pm$ 0.8 & 60.6 $\pm$ 1.0 \\
+GroupDRO~\cite{sagawa2020groupdro} & all & 64.4 $\pm$ 4.8 & 27.3 $\pm$ 0.4 & 84.3 $\pm$ 0.1 & 79.1 $\pm$ 1.2 \\
+Ours & pairs & \textbf{79.9 $\pm$ 1.5} & \textbf{38.0 $\pm$ 0.4} & 79.6 $\pm$ 1.4 & 64.8 $\pm$ 1.0 \\
+\bottomrule
+\end{tabular}
