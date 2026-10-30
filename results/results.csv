@@ -1,12 +1,12 @@
-baseline,benchmark,seed,selection_split,best_step,selection_conflicting_acc,test_conflicting_acc,n_conflicting_test,path
-ldd,bffhq_0.5pct,0,test,17500,66.0000,66.0000,500,logs/ldd/bffhq_0.5pct/seed0/test_predictions.npz
-ldd,cifar10c_1pct,0,valid,19500,34.0580,26.0667,9000,logs/ldd/cifar10c_1pct/seed0/test_predictions.npz
-ldd,cmnist_1pct,0,valid,38000,83.3333,72.5548,8994,logs/ldd/cmnist_1pct/seed0/test_predictions.npz
-lff,bffhq_0.5pct,0,test,20000,64.6000,64.6000,500,logs/lff/bffhq_0.5pct/seed0/test_predictions.npz
-lff,celeba,0,valid,6996,80.4535,79.9331,9947,logs/lff/celeba/seed0/test_predictions.npz
-lff,cifar10c_1pct,0,valid,38416,56.5217,38.0667,9000,logs/lff/cifar10c_1pct/seed0/test_predictions.npz
-lff,cmnist_1pct,0,valid,16685,84.6491,65.0296,8994,logs/lff/cmnist_1pct/seed0/test_predictions.npz
-lntl,bffhq_0.5pct,0,test,20,56.6000,56.6000,500,logs/lntl/bffhq_0.5pct/seed0/test_predictions.npz
-lntl,celeba,0,valid,7,72.1079,69.9466,9947,logs/lntl/celeba/seed0/test_predictions.npz
-lntl,cifar10c_1pct,0,valid,35,23.5507,17.7111,9000,logs/lntl/cifar10c_1pct/seed0/test_predictions.npz
-lntl,cmnist_1pct,0,valid,0,76.7544,66.9015,8994,logs/lntl/cmnist_1pct/seed0/test_predictions.npz
+baseline,benchmark,selection_split,n_conflicting_test,n_seeds,selection_conflicting_acc,test_conflicting_acc,test_aligned_acc,test_worst_group_acc
+ldd,bffhq_0.5pct,test,500,3,63.13 ± 2.48,63.13 ± 2.48,,56.80 ± 6.84
+ldd,cifar10c_1pct,valid,9000,3,36.96 ± 2.90,27.27 ± 1.60,73.60 ± 3.48,1.67 ± 1.53
+ldd,cmnist_1pct,valid,8994,3,83.92 ± 0.51,75.19 ± 2.41,87.06 ± 2.86,19.29 ± 11.66
+lff,bffhq_0.5pct,test,500,3,63.87 ± 1.81,63.87 ± 1.81,84.60 ± 2.23,61.20 ± 2.62
+lff,celeba,valid,9947,3,81.45 ± 2.33,81.15 ± 1.33,75.60 ± 6.11,56.26 ± 12.08
+lff,cifar10c_1pct,valid,9000,3,47.71 ± 9.07,36.12 ± 3.96,64.67 ± 2.15,3.67 ± 3.06
+lff,cmnist_1pct,valid,8994,3,80.99 ± 4.26,65.65 ± 0.59,65.51 ± 7.26,10.18 ± 8.89
+lntl,bffhq_0.5pct,test,500,3,55.40 ± 1.11,55.40 ± 1.11,,46.27 ± 3.95
+lntl,celeba,valid,9947,3,71.07 ± 1.57,70.61 ± 0.67,93.92 ± 1.24,45.37 ± 1.95
+lntl,cifar10c_1pct,valid,9000,3,24.52 ± 3.37,17.09 ± 0.60,98.60 ± 0.20,0.00 ± 0.00
+lntl,cmnist_1pct,valid,8994,3,72.95 ± 3.55,64.53 ± 4.72,100.00 ± 0.00,1.14 ± 1.97

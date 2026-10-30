@@ -50,16 +50,25 @@ LNTL's official code only covers Colored MNIST. For the other three benchmarks a
 2. **Checkpoint selection: best validation conflicting accuracy**, then a single test evaluation.
 - **Exception, BFFHQ:** its validation set has no conflicting samples, so, as in the original papers (LDD, BiasEnsemble, SelecMix), the checkpoint is selected on **test** conflicting accuracy. BFFHQ numbers are therefore optimistic ("oracle" selection).
 - **Exception, LDD on CelebA:** on a 2-class task an untrained, near-random model scores ~50% on conflicting samples and can beat trained-but-biased checkpoints. For LDD CelebA only, the checkpoint is the best validation conflicting accuracy **among checkpoints whose validation aligned accuracy is within 5 points of the run's best** (`--selection_aligned_margin 0.05`). This did not help: LDD never trained properly on CelebA (see notes), so it is reported as failed.
-3. **Seed 0 only** so far. Paper numbers below are means over 3–5 seeds.
+3. **Seeds 0, 1, 2**, same settings for every seed; tables report mean ± std (population std, as `eval_metrics.py --summary`). Paper numbers below are means over 3–5 seeds.
 
-## Results (seed 0, test bias-conflicting accuracy, %)
+## Results (test bias-conflicting accuracy, %, mean ± std over seeds 0, 1, 2)
 
 | | Colored MNIST 1% | Corrupted CIFAR-10 1% | BFFHQ 0.5% | CelebA |
 |---|---|---|---|---|
-| **LfF** | 65.03 | 38.07 | 64.60 | 79.93 |
-| **LDD** | 72.55 | 26.07 | 66.00 | **failed** (no trained model; see notes) |
-| **LNTL** | 66.90 | 17.71 | 56.60 | 69.95 |
-| *LNTL's own stage-1 baseline (no unlearning)* | *67.47* | *16.40* | *50.20* | — |
+| **LfF** | 65.65 ± 0.48 | 36.12 ± 3.23 | 63.87 ± 1.48 | 81.15 ± 1.09 |
+| **LDD** | 75.19 ± 1.97 | 27.27 ± 1.31 | 63.13 ± 2.03 | **failed** (no trained model; see notes) |
+| **LNTL** | 64.53 ± 3.85 | 17.09 ± 0.49 | 55.40 ± 0.91 | 70.61 ± 0.55 |
+| *LNTL's own stage-1 baseline (no unlearning)* | *65.03 ± 4.02* | *16.20 ± 0.22* | *50.33 ± 0.34* | — |
+
+Per seed (seed 0 / 1 / 2):
+
+| | Colored MNIST 1% | Corrupted CIFAR-10 1% | BFFHQ 0.5% | CelebA |
+|---|---|---|---|---|
+| LfF | 65.03 / 66.21 / 65.72 | 38.07 / 31.57 / 38.72 | 64.60 / 65.20 / 61.80 | 79.93 / 82.58 / 80.95 |
+| LDD | 72.55 / 77.29 / 75.73 | 26.07 / 29.09 / 26.67 | 66.00 / 61.60 / 61.80 | failed (seed 0 only) |
+| LNTL | 66.90 / 67.59 / 59.10 | 17.71 / 16.52 / 17.03 | 56.60 / 54.40 / 55.20 | 69.95 / 70.59 / 71.29 |
+| *LNTL stage-1* | *67.47 / 68.25 / 59.36* | *16.40 / 16.31 / 15.90* | *50.20 / 50.00 / 50.80* | — |
 
 Published numbers on the **same data** (LDD/DFA paper, Table 2: unbiased accuracy, best-on-test selection):
 
@@ -71,11 +80,11 @@ Published numbers on the **same data** (LDD/DFA paper, Table 2: unbiased accurac
 ## Notes and caveats
 
 - **LfF** matches or slightly exceeds the published numbers on the same data. Its own paper reports higher numbers (74.01 / 41.37) on its own generated datasets, which are a different data copy.
-- **LfF on CelebA over-corrects.** Its 79.93% comes from a trained checkpoint (step 6,996) that recognizes blond hair well in both genders (blond women 93.4%, blond men 93.9%) but calls too many people blond, especially men (non-blond men only 44.9%, non-blond women 66.0%). Because non-blond people are ~87% of the test set, its overall accuracy is only ~60% despite the high conflicting accuracy.
-- **LDD** matches on BFFHQ but is about 10 points lower on Colored MNIST and Corrupted CIFAR-10. The LDD training code is unchanged from upstream (only seeding, paths, selection and prediction dumps were added). A diagnostic rerun on Corrupted CIFAR-10 that also logged test accuracy showed that even best-on-test selection reaches only 31.7% unbiased accuracy, so the selection rule explains ~1 point of the gap; the rest comes from training (seed, environment or setup).
+- **LfF on CelebA over-corrects.** Seed 0's 79.93% comes from a trained checkpoint (step 6,996) that recognizes blond hair well in both genders (blond women 93.4%, blond men 93.9%) but calls too many people blond, especially men (non-blond men only 44.9%, non-blond women 66.0%). Because non-blond people are ~87% of the test set, its overall accuracy is only ~60% despite the high conflicting accuracy. Seeds 1 and 2 over-correct less (worst-group accuracy 68.9 / 55.0 vs. 44.9 for seed 0).
+- **LDD** matches on BFFHQ (63.13 vs. 63.87) but is lower on Colored MNIST (75.19 vs. 81.73, ~6.5 points) and Corrupted CIFAR-10 (27.27 vs. 36.49, ~9 points), consistently over all three seeds. The LDD training code is unchanged from upstream (only seeding, paths, selection and prediction dumps were added). A diagnostic rerun on Corrupted CIFAR-10 that also logged test accuracy showed that even best-on-test selection reaches only 31.7% unbiased accuracy, so the selection rule explains ~1 point of the gap; the rest comes from training (seed, environment or setup).
 - **LDD failed on CelebA** (ResNet-18 from scratch, BFFHQ hyperparameters; LDD's paper has no CelebA setting). Its debiased classifier collapses to predicting "blond" for almost everyone, and more often for men than women (an inverted "male → blond" rule), even on the training set (~6% training accuracy at step 19,000), while its biased helper network is fine (~95%). LDD's reweighting gives near-zero weight to the large, easy non-blond majority and very large weight to the rare blond men. Over all 100 checkpoints the best validation aligned accuracy was 50.0% (chance, at step 0), so no trained checkpoint exists to report: both selection rules end up at a near-random early checkpoint (step 4,000: 43.7–67.8% in every test cell, 55.73% conflicting). The result is excluded from `results.csv`; both runs are kept in `logs_diag/ldd/` for reference.
-- **LNTL** with its published strength (λ = 0.01, gradient reversal ×0.1) barely removes the bias on Colored MNIST, Corrupted CIFAR-10 and BFFHQ: the bias heads keep predicting the bias almost perfectly, and the result is close to LNTL's own plain baseline. On CelebA the gender head is pushed near chance and the result is a healthy, trained model.
-- **Backbones differ between baselines**, so part of each difference comes from architecture. For example, LNTL's plain convnet already scores 67.5% on Colored MNIST, above LfF with its MLP.
+- **LNTL** with its published strength (λ = 0.01, gradient reversal ×0.1) barely removes the bias on Colored MNIST, Corrupted CIFAR-10 and BFFHQ: the bias heads keep predicting the bias almost perfectly, and the result is close to LNTL's own plain baseline. On CelebA the gender head is pushed near chance and the result is a healthy, trained model. On Colored MNIST, seed 2 is ~8 points below seeds 0 and 1, in both the stage-1 baseline and the unlearned model, so the variance comes from stage 1.
+- **Backbones differ between baselines**, so part of each difference comes from architecture. For example, LNTL's plain convnet already scores 65.0 ± 4.0% on Colored MNIST, on par with LfF with its MLP (65.7 ± 0.5%).
 - **Selection on small validation sets is noisy**: Colored MNIST / Corrupted CIFAR-10 validation has only 45 / 58 conflicting samples, so the validation score of the chosen checkpoint is well above its test score.
 
 ## Reproducing
