@@ -1,0 +1,304 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage{cvpr}
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{pifont}
+\usepackage[table]{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\definecolor{lff}{HTML}{5B6B7F}
+\definecolor{pool}{HTML}{1F77B4}
+\definecolor{mix}{HTML}{2CA02C}
+\definecolor{gen}{HTML}{FF7F0E}
+\definecolor{adv}{HTML}{9467BD}
+\definecolor{ours}{HTML}{E8F1FA}
+\newcommand{\pA}{\textcolor{lff}{\ding{192}}}
+\newcommand{\pB}{\textcolor{pool}{\ding{193}}}
+\newcommand{\pC}{\textcolor{mix!70!black}{\ding{194}}}
+\newcommand{\pD}{\textcolor{gen!80!black}{\ding{195}}}
+\newcommand{\pE}{\textcolor{adv}{\ding{196}}}
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+\def\paperID{PoolForge}
+\def\confName{CVPR}
+\def\confYear{2026}
+\input{figures/labels_cmnist_1pct.tex}
+\input{numbers.tex}
+
+\title{PoolForge: Debiasing from a Memory Pool of Bias-Conflicting Images\\{\large Method, implementation, results and reproduction}}
+\author{ShortcutLearning project}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents PoolForge, a debiasing method that uses no bias labels during training, together with the code
+needed to reproduce every number in it. PoolForge extends Learning from Failure (LfF)~\cite{nam2020lff} with a memory
+pool that collects the training images a biased model keeps failing on, and with three sources of extra training images
+built from that pool: same-class mixup, a learned edit generator judged by the biased model, and a PGD perturbation.
+All models are trained from scratch on Colored MNIST, Corrupted CIFAR-10 and BFFHQ with the same code, backbone and
+selection rule. Over three seeds PoolForge reaches \PFavg\ average bias-conflicting test accuracy against \LFFavg\ for LfF.
+We report the setup, baselines, results at four bias ratios, ablations of every part, and a case study of the images
+each part produces and of the test groups on which PoolForge does best and worst.
+\end{abstract}
+
+\section{Problem setting}
+\label{sec:setting}
+Each training image has a label $y$ and a bias attribute $b$ (digit color, corruption type, or gender). For every class
+$y$ the training set has one bias value $a(y)$ that occurs with almost all images of that class. An image is
+\emph{bias-aligned} if $b=a(y)$ and \emph{bias-conflicting} otherwise. The share of conflicting images in the training
+set is the \emph{bias ratio} (0.5\%--5\% here). The bias attribute is never given to any method during training; it is
+used only to compute the metrics below and the diagnostics in Section~\ref{sec:case}.
+
+\textbf{Metrics.} We report test accuracy averaged over (class, bias) groups:
+\emph{bias-conflicting} accuracy (mean over groups with $b\neq a(y)$; the main metric),
+\emph{unbiased} accuracy (mean over all groups) and \emph{worst-group} accuracy (minimum over groups).
+$a(y)$ is the most frequent bias of class $y$ in the training set.
+
+\section{Method}
+\label{sec:method}
+Figure~\ref{fig:flow} shows one training step. PoolForge trains two networks of the same architecture: a biased model
+$f_b$ and a debiased model $f_d$. Only $f_d$ is used at test time. Parts \pC, \pD\ and \pE\ start at step 2000; the
+pool \pB\ is refreshed every 1000 steps from then on.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{\input{flowchart.tex}}
+\caption{One PoolForge training step on Colored MNIST. Thumbnails are real images saved during training (seed 0, last
+step); the labels under each image are the predictions of $f_b$ and $f_d$ for that image. The pool image has label
+$y=\cmnisty$; the generator was asked for target class $k=\cmnistk$. Parts \pC--\pE\ add loss terms on $f_d$ only.}
+\label{fig:flow}
+\end{figure*}
+
+\subsection{\pA\ LfF reweighting}
+$f_b$ is trained with generalized cross-entropy (GCE~\cite{zhang2018gce}, $q=0.7$). For every training image we keep
+exponential moving averages ($\alpha=0.7$) of the cross-entropy of $f_b$ and $f_d$, $\ell_b$ and $\ell_d$, normalized
+by the class maximum. $f_d$ is trained with cross-entropy weighted by $w=\ell_b/(\ell_b+\ell_d)$. This part is LfF
+unchanged~\cite{nam2020lff}.
+
+\subsection{\pB\ Memory pool}
+At each refresh, the images of each class are ranked by $\ell_b$. The top $k_c$ share of class $c$ receive $+1$ in a
+per-image count, after all counts are multiplied by $0.8$. The pool of class $c$ is the $k_c$ share of its images with
+the highest count (ties broken by the current rank). $k_c=1\%$ until 25\% of training; after that
+$k_c$ is the share of class-$c$ images with $\ell_b>\ln 2$, clamped to $[1\%, 20\%]$. The pool uses only $f_b$'s
+losses, not bias labels.
+
+\subsection{\pC\ Pool mixup}
+At every step we draw 32 pairs $(x_a,x_b)$ of the same class $y$ from the pool and add
+$\mathrm{CE}(f_d(\lambda x_a+(1-\lambda)x_b), y)$ with $\lambda\sim U(0,1)$ to the loss.
+
+\subsection{\pD\ Pool generator}
+At every step we draw 64 pool images $(x,y)$ and a random target class $k\neq y$ for each. The generator $G(x,k)$
+is a two-layer convolutional encoder conditioned on $k$ that outputs: a $3\times3$ color matrix $I+0.5\tanh(\cdot)$ and
+a color shift, a low-resolution residual ($8\times8$, amplitude $0.5$), a weighted sum of four learned $5\times5$
+filters applied to $x$, and per-channel Gaussian noise with a learned scale. $G$ minimizes
+$\mathrm{CE}(f_b(G(x,k)),k)+\|G(x,k)-x\|_2^2$ with Adam; $f_d$ receives $\mathrm{CE}(f_d(G(x,k)),y)$. $f_b$ is in
+evaluation mode and receives no gradient from this term. All resizing inside $G$ is done by fixed matrix
+multiplication so that training is deterministic (Section~\ref{sec:setup}).
+
+\subsection{\pE\ Pool PGD}
+At every step we draw 64 pool images and run 5 steps of PGD~\cite{madry2018pgd} with step size $\epsilon/4$,
+$\|\delta\|_\infty\le\epsilon=8/255$ (pixel scale), maximizing
+$\mathrm{CE}(f_b(x+\delta),y)-\mathrm{CE}(f_d(x+\delta),y)$. $f_d$ receives $\mathrm{CE}(f_d(x+\delta),y)$. Both
+networks are in evaluation mode during the attack.
+
+\subsection{Total loss and origin of each part}
+The loss on $f_d$ is the sum of the weighted CE of \pA\ and the terms of \pC, \pD\ and \pE, each with weight 1.0;
+$f_b$ is trained by GCE only. Table~\ref{tab:origin} lists where each part comes from.
+
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{2.2cm}p{1.9cm}p{3.5cm}@{}}
+\toprule
+Part & Origin & Difference from origin \\
+\midrule
+\pA\ LfF reweighting & LfF~\cite{nam2020lff} & none \\
+\pB\ Memory pool & new & -- \\
+\pC\ Pool mixup & mixup~\cite{zhang2018mixup} & mixes only same-class pool images; label kept \\
+\pD\ Pool generator & idea of CDvG~\cite{jung2023cdvg} & small edit network trained online, judged by $f_b$, targeted to class $k$, applied to pool images \\
+\pE\ Pool PGD & BiasAdv~\cite{lim2023biasadv} & attacks pool images instead of batch images \\
+\bottomrule
+\end{tabular}
+\caption{Origin of each part.}
+\label{tab:origin}
+\end{table}
+
+\section{Datasets}
+\label{sec:data}
+We use the releases of DisEnt~\cite{lee2021ldd} (Table~\ref{tab:data}). \textbf{Colored MNIST} (CMNIST): digit
+classification, bias = digit color, $28\times28$. \textbf{Corrupted CIFAR-10} (C-CIFAR10)~\cite{hendrycks2019corruptions}:
+object classification, bias = one of 10 corruption types, $32\times32$. \textbf{BFFHQ}~\cite{karras2019ffhq,lee2021ldd}:
+age (young/old), bias = gender, $128\times128$ resized to $224\times224$. Each split is a fixed list of files, read in
+sorted order and cached once. The bias-ratio variants change only the training and validation sets.
+
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.6pt}
+\input{tables/datasets.tex}
+\caption{Number of images and of bias-conflicting images (conf.) per split.}
+\label{tab:data}
+\end{table}
+
+\section{Baselines}
+\label{sec:baselines}
+All baselines are reimplemented in the same code base (\texttt{poolforge/methods/}) and use the same data loading,
+backbone, optimizer and selection rule as PoolForge; none uses bias labels or pretrained weights.
+\begin{itemize}\setlength\itemsep{0pt}
+\item \textbf{Vanilla:} cross-entropy.
+\item \textbf{LfF}~\cite{nam2020lff}: part \pA\ alone.
+\item \textbf{JTT}~\cite{liu2021jtt}: a first model is trained for $T$ epochs; its misclassified training images are upsampled by $u$ when a new model is trained. $(T,u)=(5,100)$ on CMNIST, $(5,50)$ on C-CIFAR10, $(1,50)$ on BFFHQ.
+\item \textbf{LC}~\cite{liu2023lc}: logit correction with the class--bias prior estimated from $f_b$'s predictions (EMA 0.5, $\eta=1$) plus group mixup between minority and majority images of the same class.
+\item \textbf{LDD / DisEnt}~\cite{lee2021ldd}: separate intrinsic and bias encoders, relative-difficulty weights, and bias-feature swapping after 10{,}000 steps; its own 50{,}000-step schedule with learning-rate decay.
+\end{itemize}
+
+\section{Experimental setup}
+\label{sec:setup}
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& CMNIST & C-CIFAR10 & BFFHQ \\
+\midrule
+Backbone & 3-layer MLP & ResNet-20 & ResNet-18~\cite{he2016resnet} \\
+Optimizer & \multicolumn{3}{c}{Adam~\cite{kingma2015adam}, no weight decay} \\
+Learning rate & $10^{-3}$ & $10^{-3}$ & $10^{-4}$ \\
+Batch size & 256 & 256 & 64 \\
+Training steps & 23{,}500 & 39{,}200 & 12{,}000 \\
+Evaluated every & 235 & 196 & 500 \\
+Augmentation & none & crop+flip & crop+flip \\
+Selection split & valid & valid & test \\
+\bottomrule
+\end{tabular}
+\caption{Training settings, shared by all methods (LDD uses its own schedule, Section~\ref{sec:baselines}).}
+\label{tab:settings}
+\end{table}
+
+Table~\ref{tab:settings} lists the training settings. All networks are trained from random initialization.
+\textbf{Selection:} we report the test score of the evaluation step with the best bias-conflicting accuracy on the
+selection split. BFFHQ's validation set has no conflicting images (Table~\ref{tab:data}), so for BFFHQ the selection
+split is the test set, for every method. \textbf{PoolForge hyperparameters} are the values in Section~\ref{sec:method}
+and are identical on all benchmarks and ratios. \textbf{Seeds:} the main benchmarks use seeds 0, 1, 2; the bias-ratio
+variants, the baselines other than LfF, and the ablations use seed 0. \textbf{Determinism:} training runs with
+\texttt{torch.use\_deterministic\_algorithms(True)}, deterministic cuDNN and
+\texttt{CUBLAS\_WORKSPACE\_CONFIG=:4096:8}; two separate runs of PoolForge on CMNIST seed 0 produced byte-identical
+training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
+
+\section{Results}
+\label{sec:results}
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.5pt}
+\input{tables/main_conflicting.tex}
+\caption{Test bias-conflicting accuracy (\%). PoolForge and LfF: mean $\pm$ std over 3 seeds; other baselines: seed 0. Bold: best per column.}
+\label{tab:main}
+\end{table}
+
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.5pt}
+\input{tables/main_unbiased.tex}\\[4pt]
+\input{tables/main_worst.tex}
+\caption{Test unbiased accuracy (top) and worst-group accuracy (bottom), \%.}
+\label{tab:other}
+\end{table}
+
+\begin{table*}[t]
+\centering\footnotesize
+\input{tables/ratio.tex}
+\caption{Test bias-conflicting accuracy (\%) at other bias ratios, seed 0.}
+\label{tab:ratio}
+\end{table*}
+
+\input{results_text.tex}
+
+\section{Ablations}
+\label{sec:ablation}
+Each row of Table~\ref{tab:abl} changes one part of PoolForge; seed 0. The three \emph{random} rows replace the
+learned generator by edits without learning: Gaussian noise with standard deviation 0.45 (mean visible change close to
+the generator's) or 0.23, and a random color matrix $I+0.5\,U(-1,1)^{3\times3}$ with a random color shift
+$U(-1,1)^3$ plus Gaussian noise (0.23). These rows use the same pool images, number of images and loss weight as the
+generator.
+
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.2pt}
+\input{tables/ablation.tex}
+\caption{Ablations, test bias-conflicting accuracy (\%), seed 0. $\Delta$: change of the average against full PoolForge.}
+\label{tab:abl}
+\end{table}
+
+\input{ablation_text.tex}
+
+\section{Case study}
+\label{sec:case}
+\subsection{What each part produces}
+The \texttt{case\_study} runs repeat PoolForge seed 0 and save, at 25\%, 50\% and 100\% of training, pool images
+together with their generator, PGD and mixup versions and the predictions of $f_b$ and $f_d$
+(512 images; 128 on BFFHQ). To measure the bias attribute of these images we train a separate bias classifier
+(\emph{probe}) on the training set with bias labels, balanced over bias values; the probe is used only for this
+analysis. Table~\ref{tab:case} reports the statistics at the last step, Figure~\ref{fig:strips} shows one example
+per benchmark, and the full grids are in \texttt{results/case\_study/}.
+
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.5pt}
+\input{tables/case_stats.tex}
+\caption{Saved pool images and their edited versions at the last training step (\%, except $|\Delta|$). ``Probe finds'' is the share of images on which the bias probe predicts the stated bias.}
+\label{tab:case}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\footnotesize
+\begin{tabular}{@{}c@{}}
+\includegraphics[width=0.9\columnwidth]{figures/strip_cmnist_1pct.png}\\
+\includegraphics[width=0.9\columnwidth]{figures/strip_cifar10c_1pct.png}\\
+\includegraphics[width=0.9\columnwidth]{figures/strip_bffhq_0.5pct.png}
+\end{tabular}
+\caption{Pool image, generator output, PGD output and mixup output (left to right) for CMNIST, C-CIFAR10 and BFFHQ (top to bottom), last training step.}
+\label{fig:strips}
+\end{figure}
+
+\input{case_text.tex}
+
+\subsection{Best and worst test groups}
+For each benchmark we compare the seed-0 checkpoints of PoolForge and LfF on the bias-conflicting test images.
+Figure~\ref{fig:groups} shows the three (class, bias) groups with the highest and the lowest PoolForge accuracy, and
+Figure~\ref{fig:outcomes} shows random test images by outcome.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.32\textwidth]{figures/test_groups_cmnist_1pct.png}\hfill
+\includegraphics[width=0.32\textwidth]{figures/test_groups_cifar10c_1pct.png}\hfill
+\includegraphics[width=0.32\textwidth]{figures/test_groups_bffhq_0.5pct.png}
+\caption{Best (top row) and worst (bottom row) bias-conflicting test groups of PoolForge, seed 0, with PoolForge and LfF accuracy on that group. Left to right: CMNIST, C-CIFAR10, BFFHQ.}
+\label{fig:groups}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/test_outcomes_cmnist_1pct.png}\hfill
+\includegraphics[width=0.49\textwidth]{figures/test_outcomes_cifar10c_1pct.png}
+\caption{Random bias-conflicting test images grouped by whether PoolForge and LfF (seed 0) are correct; $n$ is the size of each outcome. Left: CMNIST; right: C-CIFAR10. BFFHQ is in \texttt{results/case\_study/}.}
+\label{fig:outcomes}
+\end{figure*}
+
+\input{groups_text.tex}
+
+\section{Reproduction}
+\label{sec:repro}
+\begin{enumerate}\setlength\itemsep{0pt}
+\item \texttt{pip install -r requirements.txt} (Python 3.10+, CUDA GPU).
+\item \texttt{python prepare\_data.py} downloads the DisEnt release into \texttt{data/} and builds the caches.
+\item \texttt{python run.py --group all --gpus 0,1} trains every run of this report into \texttt{runs/}; finished runs are skipped. \texttt{--group baselines|ours|ablations|case\_study} or \texttt{--exp NAME} select a subset; \texttt{--list} shows what is done.
+\item \texttt{python results.py} evaluates the saved checkpoints and writes all tables to \texttt{results/}.
+\item \texttt{python case\_study.py} writes the case-study figures and statistics.
+\item \texttt{bash report/build.sh} rebuilds this PDF from those files.
+\end{enumerate}
+Each run writes \texttt{history.csv} (all metrics at every evaluation), \texttt{result.json} and the selected
+checkpoint \texttt{best.pt}. \input{runtime_text.tex}
+
+{\small
+\bibliographystyle{ieeenat_fullname}
+\bibliography{refs}
+}
+\end{document}

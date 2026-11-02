@@ -1,0 +1,42 @@
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners=3pt, thick, align=center, minimum height=1.2cm, inner sep=4pt, fill=white, text width=#1},
+  box/.default=3.0cm,
+  arr/.style={-{Stealth[length=2.4mm]}, thick},
+  lab/.style={font=\footnotesize, align=center, fill=white, inner sep=1.5pt},
+  pic/.style={inner sep=0pt, draw=black!40}]
+\newcommand{\thumb}[1]{\includegraphics[width=1.5cm]{figures/thumb_cmnist_1pct_#1.png}}
+\newcommand{\pred}[2]{{\footnotesize $f_b$:\,#1 \ $f_d$:\,#2}}
+
+\node[box=3.3cm] (x) at (0,0) {\textbf{Training batch} $(x,y)$\\[2pt]
+  \begin{tabular}{@{}c@{\hspace{3pt}}c@{}}\thumb{train_aligned} & \thumb{train_conflicting}\\[-1pt]
+  {\scriptsize aligned} & {\scriptsize conflicting}\\[-2pt]{\scriptsize (\cmnisttrainaligned)} & {\scriptsize (\cmnisttrainconflicting)}\end{tabular}\\
+  {\footnotesize $y=\cmnisty$ for both}};
+\node[box=2.9cm, draw=lff] (fb) at (4.4,2.3) {\textbf{Biased model} $f_b$\\GCE loss};
+\node[box=2.9cm, draw=lff] (fd) at (4.4,-2.6) {\textbf{Debiased model} $f_d$\\(kept for test)};
+\node[box=2.5cm, draw=lff] (ema) at (8.2,0) {Per-sample EMA losses $\ell_b,\ \ell_d$};
+
+\node[box=3.8cm, draw=lff, fill=lff!8] (w) at (12.6,6.4) {\textcolor{lff}{\textbf{\ding{192} LfF reweighting}}\\$w=\ell_b/(\ell_b+\ell_d)$, weighted CE};
+\node[box=3.8cm, draw=pool, fill=pool!8] (pool) at (12.6,0.6) {\textcolor{pool}{\textbf{\ding{193} Memory pool}}\\decayed counts of top-$k$ $\ell_b$;\\$k$: 1\% $\to$ adaptive\\[2pt]
+  \thumb{x}\\\pred{\cmnistxb}{\cmnistxd}};
+\node[box=4.8cm, draw=mix, fill=mix!8] (mixup) at (18.4,0.6) {\textcolor{mix!70!black}{\textbf{\ding{194} Pool mixup}}\\32 same-class pool pairs\\$\tilde x=\lambda x_a+(1-\lambda)x_b$\\CE$(f_d(\tilde x),y)$\\[2pt]
+  \thumb{mix}\\\pred{\cmnistmixb}{\cmnistmixd}};
+\node[box=5.6cm, draw=gen, fill=gen!8] (gen) at (18.4,-5.2) {\textcolor{gen!80!black}{\textbf{\ding{195} Pool generator} $G$}\\64 pool images, target class $k\neq y$\\learned color matrix, filters and noise\\$G$: CE$(f_b(G(x,k)),k)$; \ $f_d$: CE$(f_d(G(x,k)),y)$\\[2pt]
+  \thumb{gen}\\{\footnotesize $k=\cmnistk$:} \pred{\cmnistgenb}{\cmnistgend}};
+\node[box=4.8cm, draw=adv, fill=adv!8] (adv) at (18.4,6.6) {\textcolor{adv}{\textbf{\ding{196} Pool PGD}}\\64 pool images, 5 steps:\\$\uparrow$CE$(f_b)$, $\downarrow$CE$(f_d)$, $\|\delta\|_\infty\le\epsilon$\\CE$(f_d(x+\delta),y)$\\[2pt]
+  \thumb{pgd}\\\pred{\cmnistpgdb}{\cmnistpgdd}};
+\node[box=2.4cm, very thick] (loss) at (24.0,0.6) {\textbf{Total loss} on $f_d$\\\ding{192} + \ding{194} + \ding{195} + \ding{196}};
+
+\draw[arr] (x.east) -- ++(0.5,0) |- (fb.west);
+\draw[arr] (x.east) -- ++(0.5,0) |- (fd.west);
+\draw[arr] (fb.east) -| node[lab, pos=0.25, above]{$\ell_b$} (ema.north);
+\draw[arr] (fd.east) -| node[lab, pos=0.25, below]{$\ell_d$} (ema.south);
+\draw[arr] (ema.east) -- ++(0.6,0) |- (w.west);
+\draw[arr] (ema.east) -- ++(0.6,0) |- (pool.west);
+\draw[arr] (pool) -- node[lab, above]{images} (mixup);
+\draw[arr] (pool.south) |- node[lab, pos=0.75, above]{images} (gen.west);
+\draw[arr] (pool.north east) -- node[lab, sloped, above]{images} (adv.south west);
+\draw[arr] (w.north) -- ++(0,2.6) -| ([xshift=6mm]loss.north);
+\draw[arr] (adv.east) -| ([xshift=-6mm]loss.north);
+\draw[arr] (mixup.east) -- (loss.west);
+\draw[arr] (gen.east) -| (loss.south);
+\end{tikzpicture}
