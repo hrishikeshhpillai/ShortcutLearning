@@ -56,7 +56,7 @@ def train_probe(benchmark, device, out_dir, steps=3000):
     data = load_data(benchmark, device)
     net = probe_net(benchmark, info["num_biases"]).to(device)
     if os.path.exists(path):
-        net.load_state_dict(torch.load(path))
+        net.load_state_dict(torch.load(path, map_location=device))
         return net.eval(), json.load(open(path + ".json"))["test_acc"]
     torch.manual_seed(0)
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
@@ -196,7 +196,8 @@ def test_cases(benchmark, device, out_dir, per_group=6, seed=0):
     groups = [(c, b) for c in range(cells["poolforge"].shape[0]) for b in range(cells["poolforge"].shape[1])
               if count[c, b] > 0 and aligned[c] != b]
     groups.sort(key=lambda g: cells["poolforge"][g])
-    worst, best = groups[:3], groups[-3:][::-1]
+    k = min(3, len(groups) // 2)
+    worst, best = groups[:k], groups[-k:][::-1]
     group_rows = [dict(kind=kind, y=class_name(benchmark, c), bias=bias_name(benchmark, b), n=int(count[c, b]),
                        poolforge=100 * float(cells["poolforge"][c, b]), lff=100 * float(cells["lff"][c, b]))
                   for kind, gs in (("best", best), ("worst", worst)) for c, b in gs]
@@ -223,7 +224,7 @@ def test_cases(benchmark, device, out_dir, per_group=6, seed=0):
     fig.tight_layout(rect=(0.11, 0, 1, 1))
     fig.savefig(os.path.join(out_dir, f"test_outcomes_{benchmark}.png"), dpi=170)
     plt.close(fig)
-    fig, axes = plt.subplots(2, 3, figsize=(5.4, 4.0))
+    fig, axes = plt.subplots(2, k, figsize=(1.8 * k, 4.0), squeeze=False)
     for ax, row, (c, b) in zip(axes.flatten(), group_rows, best + worst):
         i = torch.nonzero((y == c) & (bias == b)).flatten()[0].item()
         ax.imshow(images[i].numpy())
@@ -241,10 +242,11 @@ def main():
     p.add_argument("--runs", default=None, help="folder holding <benchmark>/seed0/case_step*.pt (default: runs/case_study)")
     p.add_argument("--out", default="results/case_study")
     p.add_argument("--benchmarks", nargs="+", default=list(TITLES))
+    p.add_argument("--device", default="cuda")
     p.add_argument("--test_only", action="store_true", help="only the best/worst test-group analysis")
     args = p.parse_args()
     os.makedirs(args.out, exist_ok=True)
-    device = torch.device("cuda")
+    device = torch.device(args.device)
     table = {}
     for benchmark in args.benchmarks:
         table.setdefault(benchmark, {})["test"] = test_cases(benchmark, device, args.out)

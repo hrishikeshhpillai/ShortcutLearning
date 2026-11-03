@@ -1,1 +1,10 @@
-\textit{[placeholder: written when all runs finish]}
+\textbf{Pool.} At the last step 86.3\% (CMNIST) and 79.3\% (C-CIFAR10) of the pool images are bias-conflicting,
+but only 35.2\% on BFFHQ, where the pool is mostly bias-aligned images that $f_d$ finds hard.
+\textbf{Generator.} Its outputs keep the class for $f_d$ (96.5--99.4\%) and move $f_b$ to the target bias $k$
+(99.8\% CMNIST, 71.9\% C-CIFAR10, 96.9\% BFFHQ). The independent probe agrees less often: it finds the bias of $k$ on
+50.6\%, 35.9\% and 71.1\% of the outputs, so part of the change fools $f_b$ without changing the bias the probe sees.
+On BFFHQ the edit is smaller (mean $|\Delta|$ 24.9 vs.\ about 48) and the probe still finds the original gender on
+56.2\% of the outputs. \textbf{PGD} changes pixels by under 4/255 on average, makes $f_b$ wrong on 90--100\% of the
+images and leaves the probe's bias unchanged on CMNIST (99.4\%): it attacks $f_b$, not the bias attribute.
+\textbf{Mixup} outputs keep the class for $f_d$ (96.7--99.6\%) while $f_b$ predicts the class on only 15.0\%,
+24.4\% and 47.7\%.

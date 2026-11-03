@@ -8,7 +8,7 @@ cp ../results/case_study/{thumb_*,strip_*,test_groups_*,test_outcomes_*}.png ../
 latexmk -pdf -interaction=nonstopmode -halt-on-error report.tex > build.log 2>&1 || { tail -30 build.log; exit 1; }
 echo "built $(pwd)/report.pdf"
 latexmk -pdf -interaction=nonstopmode -halt-on-error flowchart_standalone.tex > build_flowchart.log 2>&1
-python -c "
+/home/lian0172/miniconda3/envs/env260801/bin/python -c "
 import pymupdf
 page = pymupdf.open('flowchart_standalone.pdf')[0]
 box = pymupdf.Rect()

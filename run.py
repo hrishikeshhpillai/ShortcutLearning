@@ -9,6 +9,7 @@ from experiments import EXPERIMENTS, flags_for, jobs, run_dir
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 NEEDS_MIB = {"bffhq": 11000}
+MAX_RETRIES = 3
 
 
 def free_mib(gpu):
@@ -18,7 +19,7 @@ def free_mib(gpu):
 
 
 def launch(todo, gpus, per_gpu):
-    pending, lock, failed = list(todo), threading.Lock(), []
+    pending, lock, failed, retries = list(todo), threading.Lock(), [], {}
     gpu_locks = {g: threading.Lock() for g in gpus}
     need = lambda j: NEEDS_MIB.get(j[1].split("_")[0], 3000)
 
@@ -43,10 +44,20 @@ def launch(todo, gpus, per_gpu):
                                          str(seed), "--single"], cwd=REPO, stdout=log, stderr=subprocess.STDOUT,
                                         env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu))
                 time.sleep(90)
-            if proc.wait():
-                failed.append((name, benchmark, seed))
-                print(f"FAILED {name} {benchmark} seed {seed}: see {out}/train.log", flush=True)
+            code = proc.wait()
             log.close()
+            if code:
+                job = (name, benchmark, seed)
+                oom = "OutOfMemoryError" in open(os.path.join(out, "train.log")).read()
+                if oom and retries.get(job, 0) < MAX_RETRIES:
+                    retries[job] = retries.get(job, 0) + 1
+                    print(f"OOM {name} {benchmark} seed {seed}: requeued (retry {retries[job]})", flush=True)
+                    with lock:
+                        pending.append(job)
+                    time.sleep(300)
+                    continue
+                failed.append(job)
+                print(f"FAILED {name} {benchmark} seed {seed}: see {out}/train.log", flush=True)
 
     threads = [threading.Thread(target=worker, args=(g,)) for g in gpus for _ in range(per_gpu)]
     for t in threads:

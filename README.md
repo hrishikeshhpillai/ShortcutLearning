@@ -15,18 +15,27 @@ every number and figure in the report.
 **Report:** [report/report.pdf](report/report.pdf) covers method, datasets, baselines, setup, results, ablations,
 case study and reproduction.
 
-> **Status (2 Nov 2026):** the training runs for the report are in progress. `report/report.pdf` and `results/` will be
-> added when they finish. The code and the reproduction commands below are complete.
+> **Status (3 Nov 2026):** intermediate release. Results below are final for every finished run. Still running: LDD on
+> BFFHQ and five ablation runs (untargeted and batch generator on BFFHQ, no pool PGD on C-CIFAR10 and BFFHQ, PGD on
+> batch images); they are marked "–" in the tables.
 
 ![PoolForge training step](report/figures/flowchart.png)
 
 ## Results
 
-Test accuracy on bias-conflicting images (%), averaged over (class, bias) groups. PoolForge and LfF are the mean ± std
-over seeds 0, 1 and 2; the other baselines are seed 0. All models are trained from scratch with the same code, backbone
+Test accuracy on bias-conflicting images (%), averaged over (class, bias) groups. All methods use seed 0. All models are trained from scratch with the same code, backbone
 and selection rule. Full tables, including the bias ratios and ablations, are in [results/RESULTS.md](results/RESULTS.md).
 
-<!-- RESULTS -->
+| Method | CMNIST | C-CIFAR10 | BFFHQ | Avg. |
+|---|---|---|---|---|
+| Vanilla | 32.3 | 8.3 | 55.0 | 31.9 |
+| LfF | 73.3 | 39.2 | 67.8 | 60.1 |
+| JTT | 63.0 | 18.5 | 55.2 | 45.6 |
+| LC | 46.3 | **41.4** | 65.2 | 51.0 |
+| LDD | 75.6 | 18.5 | – | – |
+| **PoolForge** | **84.3** | 40.2 | **70.0** | **64.8** |
+
+BFFHQ has no bias-conflicting validation images, so every method selects its BFFHQ checkpoint on the test set.
 
 ## Setup
 
@@ -57,15 +66,13 @@ bash report/build.sh                                 # rebuild report/report.pdf
 Training is deterministic: `torch.use_deterministic_algorithms(True)`, deterministic cuDNN and
 `CUBLAS_WORKSPACE_CONFIG=:4096:8`. Rerunning a run on the same hardware and software gives identical logs.
 
-Run time on one RTX A5000, with two runs per GPU:
+Measured wall-clock time of the seed-0 runs, with up to nine runs sharing two GPUs (so these are upper bounds):
 
-| Benchmark | Run time |
-|---|---|
-| CMNIST | about 20 min |
-| C-CIFAR10 | about 1.5 h |
-| BFFHQ | about 2.5 h |
-
-The full set of runs takes about two days on two GPUs.
+| Benchmark | LfF | PoolForge |
+|---|---|---|
+| CMNIST | 9 min | 47 min |
+| C-CIFAR10 | 51 min | 7.0 h |
+| BFFHQ | 51 min | 6.6 h |
 
 ## Layout
 

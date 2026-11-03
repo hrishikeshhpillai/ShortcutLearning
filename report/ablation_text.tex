@@ -1,1 +1,17 @@
-\textit{[placeholder: written when all runs finish]}
+\textbf{Clear contributions.} Removing LfF reweighting costs the most ($-8.4$ on average; $-11.1$ on CMNIST and
+$-9.4$ on BFFHQ). Removing the generator costs $-7.1$, almost all on CMNIST ($-20.2$); on BFFHQ the run without the
+generator is slightly higher (71.0 vs.\ 70.0). Replacing the learned generator by random Gaussian noise of the same
+visible size costs $-4.4$ ($-6.4$ on C-CIFAR10), and generating from batch images instead of pool images costs
+$-4.1$ on CMNIST and $-2.5$ on C-CIFAR10.
+
+\textbf{Weak or mixed evidence.} Mixing pool images instead of repeating them helps on C-CIFAR10 ($+3.6$) and
+BFFHQ ($+2.2$) but not on CMNIST ($+0.1$). A random color edit plus noise is only $1.3$ points below the learned
+generator on average ($-0.5$ on CMNIST, $-2.4$ on C-CIFAR10, $-1.0$ on BFFHQ), so most of the generator's gain is
+explained by color-like edits on pool images. The color-only generator (without learned filters and noise) is worse
+on CMNIST ($-14.7$) but better on C-CIFAR10 ($+5.2$) and BFFHQ ($+7.2$); its average is within one point of the
+full model. The untargeted generator is below the targeted one on CMNIST ($-3.5$) and about equal on C-CIFAR10
+($-0.5$). Without pool PGD, CMNIST drops by $1.5$.
+
+\textbf{Not finished at the time of writing:} untargeted and batch generator on BFFHQ, pool PGD removed on C-CIFAR10
+and BFFHQ, and PGD on batch images (all benchmarks); their cells are marked ``--''. All ablations are single runs
+(seed 0), so differences of one or two points should be read with care.

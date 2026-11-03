@@ -1,0 +1,20 @@
+\begin{tabular}{lccc}
+\toprule
+ & CMNIST & C-CIFAR10 & BFFHQ \\
+\midrule
+Pool images that are bias-conflicting & 86.3 & 79.3 & 35.2 \\
+Generator: $f_b$ predicts target $k$ & 99.8 & 71.9 & 96.9 \\
+Generator: $f_d$ predicts $y$ & 99.4 & 96.5 & 99.2 \\
+Generator: probe finds original bias & 13.9 & 18.8 & 56.2 \\
+Generator: probe finds bias of $k$ & 50.6 & 35.9 & 71.1 \\
+Generator: mean $|\Delta|$ (0--255) & 47.4 & 48.4 & 24.9 \\
+PGD: $f_b$ wrong & 90.2 & 96.1 & 100.0 \\
+PGD: $f_d$ predicts $y$ & 100.0 & 100.0 & 100.0 \\
+PGD: probe finds original bias & 99.4 & 52.5 & 52.3 \\
+PGD: mean $|\Delta|$ (0--255) & 3.9 & 3.5 & 3.7 \\
+Mixup: $f_d$ predicts $y$ & 99.6 & 96.7 & 97.7 \\
+Mixup: $f_b$ predicts $y$ & 15.0 & 24.4 & 47.7 \\
+\midrule
+Bias probe, test accuracy & 99.8 & 84.8 & 71.7 \\
+\bottomrule
+\end{tabular}

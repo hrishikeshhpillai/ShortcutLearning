@@ -41,7 +41,7 @@ needed to reproduce every number in it. PoolForge extends Learning from Failure 
 pool that collects the training images a biased model keeps failing on, and with three sources of extra training images
 built from that pool: same-class mixup, a learned edit generator judged by the biased model, and a PGD perturbation.
 All models are trained from scratch on Colored MNIST, Corrupted CIFAR-10 and BFFHQ with the same code, backbone and
-selection rule. Over three seeds PoolForge reaches \PFavg\ average bias-conflicting test accuracy against \LFFavg\ for LfF.
+selection rule. With seed 0, PoolForge reaches \PFavg\ average bias-conflicting test accuracy against \LFFavg\ for LfF.
 We report the setup, baselines, results at four bias ratios, ablations of every part, and a case study of the images
 each part produces and of the test groups on which PoolForge does best and worst.
 \end{abstract}
@@ -137,7 +137,7 @@ sorted order and cached once. The bias-ratio variants change only the training a
 
 \begin{table}[t]
 \centering\footnotesize\setlength{\tabcolsep}{2.6pt}
-\input{tables/datasets.tex}
+\resizebox{\columnwidth}{!}{\input{tables/datasets.tex}}
 \caption{Number of images and of bias-conflicting images (conf.) per split.}
 \label{tab:data}
 \end{table}
@@ -180,8 +180,8 @@ Table~\ref{tab:settings} lists the training settings. All networks are trained f
 \textbf{Selection:} we report the test score of the evaluation step with the best bias-conflicting accuracy on the
 selection split. BFFHQ's validation set has no conflicting images (Table~\ref{tab:data}), so for BFFHQ the selection
 split is the test set, for every method. \textbf{PoolForge hyperparameters} are the values in Section~\ref{sec:method}
-and are identical on all benchmarks and ratios. \textbf{Seeds:} the main benchmarks use seeds 0, 1, 2; the bias-ratio
-variants, the baselines other than LfF, and the ablations use seed 0. \textbf{Determinism:} training runs with
+and are identical on all benchmarks and ratios. \textbf{Seeds:} every run in this report uses seed 0.
+\textbf{Determinism:} training runs with
 \texttt{torch.use\_deterministic\_algorithms(True)}, deterministic cuDNN and
 \texttt{CUBLAS\_WORKSPACE\_CONFIG=:4096:8}; two separate runs of PoolForge on CMNIST seed 0 produced byte-identical
 training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
@@ -191,7 +191,7 @@ training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
 \begin{table}[t]
 \centering\footnotesize\setlength{\tabcolsep}{2.5pt}
 \input{tables/main_conflicting.tex}
-\caption{Test bias-conflicting accuracy (\%). PoolForge and LfF: mean $\pm$ std over 3 seeds; other baselines: seed 0. Bold: best per column.}
+\caption{Test bias-conflicting accuracy (\%). Seed 0 for all methods. Bold: best per column.}
 \label{tab:main}
 \end{table}
 
@@ -267,9 +267,9 @@ Figure~\ref{fig:outcomes} shows random test images by outcome.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.32\textwidth]{figures/test_groups_cmnist_1pct.png}\hfill
-\includegraphics[width=0.32\textwidth]{figures/test_groups_cifar10c_1pct.png}\hfill
-\includegraphics[width=0.32\textwidth]{figures/test_groups_bffhq_0.5pct.png}
+\includegraphics[height=4.6cm]{figures/test_groups_cmnist_1pct.png}\hfill
+\includegraphics[height=4.6cm]{figures/test_groups_cifar10c_1pct.png}\hfill
+\includegraphics[height=4.6cm]{figures/test_groups_bffhq_0.5pct.png}
 \caption{Best (top row) and worst (bottom row) bias-conflicting test groups of PoolForge, seed 0, with PoolForge and LfF accuracy on that group. Left to right: CMNIST, C-CIFAR10, BFFHQ.}
 \label{fig:groups}
 \end{figure*}

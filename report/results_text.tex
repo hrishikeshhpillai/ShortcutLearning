@@ -1,1 +1,10 @@
-\textit{[placeholder: written when all runs finish]}
+\textbf{Main benchmarks.} PoolForge has the highest average test bias-conflicting accuracy (\PFavg\%, against
+\LFFavg\% for LfF, Table~\ref{tab:main}). It is the best method on CMNIST (84.3 vs.\ 75.6 for LDD and 73.3 for LfF)
+and BFFHQ (70.0 vs.\ 67.8 for LfF). On C-CIFAR10 it is second (40.2), behind LC (41.4) and ahead of LfF (39.2).
+\textbf{Worst group} (Table~\ref{tab:other}): PoolForge raises the worst bias-conflicting group from 4.2 to 56.8 on
+CMNIST and from 4.0 to 11.0 on C-CIFAR10 relative to LfF; on BFFHQ it is lower than LfF (57.6 vs.\ 64.8).
+\textbf{Unbiased accuracy} on BFFHQ is also lower (70.9 vs.\ 80.5 for LfF and 77.2 for Vanilla): the gain on
+conflicting images is paid for with bias-aligned images. \textbf{Bias ratios} (Table~\ref{tab:ratio}): PoolForge
+is above LfF at five of six ratios, with the largest gaps at the strongest bias (0.5\%: $+24.0$ on CMNIST,
+$+13.1$ on C-CIFAR10); at C-CIFAR10 5\% it is below LfF (55.3 vs.\ 58.9).
+\textbf{Not finished at the time of writing:} LDD on BFFHQ (its row is marked ``--'').

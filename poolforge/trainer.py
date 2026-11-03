@@ -113,7 +113,7 @@ def train(args, benchmark, seed, out):
 
     for step in range(cfg["num_steps"]):
         if method.sample_prob is not None:
-            index = torch.multinomial(method.sample_prob, cfg["batch_size"], replacement=True)
+            index = torch.multinomial(method.sample_prob.cpu(), cfg["batch_size"], replacement=True).to(device)
         else:
             if not batches:
                 batches = list(torch.randperm(ctx.n_train, device=device).split(cfg["batch_size"]))

@@ -1,1 +1,8 @@
-\textit{[placeholder: written when all runs finish]}
+\textbf{CMNIST.} On the 8{,}994 conflicting test images PoolForge is right and LfF wrong on 1{,}429, the reverse on
+450. The best groups (digit 1 with colors 7 and 2, digit 0 with color 8) are near 100\%; the worst are digits 5 and 3
+with colors 4, 6 and 3 (57--58\%), still above LfF on the same groups (38--48\%).
+\textbf{C-CIFAR10.} The two methods are close: 1{,}570 images favor PoolForge and 1{,}477 favor LfF, and 3{,}905 are
+wrong for both. The best groups (truck with pixelate and spatter, car with brightness, 67--73\%) are slightly better
+for LfF; the worst are bird with elastic and deer with fog (11 and 12\%, against 25 and 24\% for LfF).
+\textbf{BFFHQ} has two conflicting groups. PoolForge is better on young men (82.4 vs.\ 70.8) and worse on old women
+(57.6 vs.\ 64.8); 83 images favor PoolForge and 72 favor LfF.
