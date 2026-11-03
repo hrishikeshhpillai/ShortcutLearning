@@ -27,6 +27,8 @@
 \def\confName{CVPR}
 \def\confYear{2026}
 \input{figures/labels_cmnist_1pct.tex}
+\input{figures/labels_cifar10c_1pct.tex}
+\input{figures/labels_bffhq_0.5pct.tex}
 \input{numbers.tex}
 
 \title{PoolForge: Debiasing from a Memory Pool of Bias-Conflicting Images\\{\large Method, implementation, results and reproduction}}
@@ -48,31 +50,23 @@ PoolForge does best and worst. Every checkpoint behind these numbers is released
 reproduces every table exactly.
 \end{abstract}
 
-\section{Problem setting}
-\label{sec:setting}
-Each training image has a label $y$ and a bias attribute $b$ (digit color, corruption type, or gender). For every class
-$y$ the training set has one bias value $a(y)$ that occurs with almost all images of that class. An image is
-\emph{bias-aligned} if $b=a(y)$ and \emph{bias-conflicting} otherwise. The share of conflicting images in the training
-set is the \emph{bias ratio} (0.5\%--5\% here). The bias attribute is never given to any method during training; it is
-used only to compute the metrics below and the diagnostics in Section~\ref{sec:case}.
-
-\textbf{Metrics.} We report test accuracy averaged over (class, bias) groups:
-\emph{bias-conflicting} accuracy (mean over groups with $b\neq a(y)$; the main metric),
-\emph{unbiased} accuracy (mean over all groups) and \emph{worst-group} accuracy (minimum over groups).
-$a(y)$ is the most frequent bias of class $y$ in the training set.
-
 \section{Method}
 \label{sec:method}
-Figure~\ref{fig:flow} shows one training step. PoolForge trains two networks of the same architecture: a biased model
+Each training image has a label $y$ and a bias attribute $b$ (digit color, corruption type, or gender). For every class
+$y$ one bias value $a(y)$ occurs with almost all its training images; an image is \emph{bias-aligned} if $b=a(y)$ and
+\emph{bias-conflicting} otherwise. No method sees $b$ during training. Figure~\ref{fig:flow} shows one training
+step with real images. PoolForge trains two networks of the same architecture: a biased model
 $f_b$ and a debiased model $f_d$. Only $f_d$ is used at test time. Parts \pC, \pD\ and \pE\ start at step 2000; the
 pool \pB\ is refreshed every 1000 steps from then on.
 
 \begin{figure*}[t]
 \centering
 \resizebox{\textwidth}{!}{\input{flowchart.tex}}
-\caption{One PoolForge training step on Colored MNIST. Thumbnails are real images saved during training (seed 0, last
-step); the labels under each image are the predictions of $f_b$ and $f_d$ for that image. The pool image has label
-$y=\cmnisty$; the generator was asked for target class $k=\cmnistk$. Parts \pC--\pE\ add loss terms on $f_d$ only.}
+\caption{One PoolForge training step with real images from CMNIST, C-CIFAR10 and BFFHQ (left to right in each box).
+All thumbnails were saved during training (seed 0, last step). Under each image are the predictions of $f_b$ and
+$f_d$; the training batch shows a bias-aligned and a bias-conflicting image of the same class $y$ with their bias
+values, the pool boxes show one pool image of class $y$ and what mixup, the generator (target class $k$) and PGD make
+of it. Parts \pC--\pE\ add loss terms on $f_d$ only.}
 \label{fig:flow}
 \end{figure*}
 
@@ -135,7 +129,7 @@ classification, bias = digit color, $28\times28$. \textbf{Corrupted CIFAR-10} (C
 object classification, bias = one of 10 corruption types, $32\times32$. \textbf{BFFHQ}~\cite{karras2019ffhq,lee2021ldd}:
 age (young/old), bias = gender, $128\times128$ resized to $224\times224$. Each split is a fixed list of files, read in
 sorted order and cached once. The bias-ratio variants change only the training and validation sets.
-Figure~\ref{fig:pipeline} shows example images and the whole workflow from the datasets to the results.
+Figure~\ref{fig:flow} shows one training image of each kind per benchmark.
 
 \begin{table}[t]
 \centering\footnotesize\setlength{\tabcolsep}{2.6pt}
@@ -144,14 +138,6 @@ Figure~\ref{fig:pipeline} shows example images and the whole workflow from the d
 \label{tab:data}
 \end{table}
 
-\begin{figure}[t]
-\centering
-\resizebox{\columnwidth}{!}{\input{pipeline.tex}}
-\caption{Workflow from the datasets to this report. Thumbnails are training images; in each pair both images have the
-same class, the left one with the class's majority bias (bias-aligned) and the right one with another bias
-(bias-conflicting). Steps 3a, 3b and 4 work from the shipped checkpoints without training (Section~\ref{sec:repro}).}
-\label{fig:pipeline}
-\end{figure}
 
 \section{Baselines}
 \label{sec:baselines}
@@ -186,6 +172,12 @@ Selection split & valid & valid & test \\
 \caption{Training settings, shared by all methods (LDD uses its own schedule, Section~\ref{sec:baselines}).}
 \label{tab:settings}
 \end{table}
+
+\textbf{Metrics.} We report test accuracy averaged over (class, bias) groups:
+\emph{bias-conflicting} accuracy (mean over groups with $b\neq a(y)$; the main metric),
+\emph{unbiased} accuracy (mean over all groups) and \emph{worst-group} accuracy (minimum over groups).
+$a(y)$ is the most frequent bias of class $y$ in the training set. The bias attribute is used only for these metrics and for the diagnostics in
+Section~\ref{sec:case}.
 
 Table~\ref{tab:settings} lists the training settings. All networks are trained from random initialization.
 \textbf{Selection:} we report the test score of the evaluation step with the best bias-conflicting accuracy on the
@@ -301,7 +293,7 @@ Figure~\ref{fig:outcomes} shows random test images by outcome.
 
 \section{Reproduction}
 \label{sec:repro}
-Figure~\ref{fig:pipeline} shows the release. Every number in this report is computed from the files in
+Every number in this report is computed from the files in
 \texttt{runs/}; nothing is typed in by hand.
 \begin{enumerate}\setlength\itemsep{0pt}
 \item \texttt{pip install -r requirements.txt} (Python 3.10, PyTorch 2.5.1, one CUDA GPU; a CPU is enough for steps 3--4).
