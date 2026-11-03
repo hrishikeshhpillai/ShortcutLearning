@@ -103,7 +103,12 @@ python progress.py
 When training is done, repeat steps 3–5 to get the tables, predictions and report of the new runs.
 
 Expected: retrained baselines repeat the shipped results exactly. Retrained PoolForge runs differ slightly from the
-shipped ones; on CMNIST seed 0, two retrains gave 84.34 and 84.38 against 84.41 shipped.
+shipped ones (GPU non-determinism in the generator). Measured for PoolForge seed 0:
+
+| | CMNIST | C-CIFAR10 | BFFHQ | Avg. |
+|---|---|---|---|---|
+| Shipped | 84.4 | 40.0 | 72.2 | 65.5 |
+| Retrained | 84.4 | 40.1 | 71.4 | 65.3 |
 
 ## Step 7. Build the submission zip
 
