@@ -1,203 +1,114 @@
 # PoolForge
 
-PoolForge is a debiasing method that uses no bias labels during training. It extends
-Learning from Failure (LfF, NeurIPS 2020) with:
+Report: [report/report.pdf](report/report.pdf)
 
-- a **memory pool** of the training images that the biased model keeps failing on;
-- three sources of extra training images built from that pool:
-  - same-class **pool mixup**;
-  - a learned **pool generator** whose edits are judged by the biased model;
-  - **pool PGD**.
+All commands are run from the repository root.
 
-PoolForge is the model called *V11* in our development notes (run name `explore_ga_no_newton`).
+## Step 1. Install
 
-This repository has the method, five baselines and all ablations in one code base. It also includes every trained
-checkpoint, its training log and its test predictions, so every number in the report can be reproduced without
-training.
+```bash
+pip install -r requirements.txt
+```
 
-**Report:** [report/report.pdf](report/report.pdf) covers method, datasets, baselines, setup, results, ablations,
-case study, reproduction and conclusion.
+Python 3.10 and PyTorch 2.5.1. Steps 3–5 run on a CPU; step 6 needs a CUDA GPU.
 
-![PoolForge training step](report/figures/flowchart.png)
+## Step 2. Download the data
 
-## Results
+```bash
+python prepare_data.py
+```
 
-Test accuracy on bias-conflicting images (%), averaged over (class, bias) groups. All models are trained from scratch
-with the same code, backbone and selection rule.
+Expected: `data/cmnist/`, `data/cifar10c/`, `data/bffhq/` and `data/cache/*.npz`, plus one line per split, for example
+`cmnist_1pct test 10000`.
 
-**Seed 0, all methods:**
+## Step 3. Reproduce all tables from the shipped checkpoints (no training)
 
-| Method | CMNIST | C-CIFAR10 | BFFHQ | Avg. |
+```bash
+rm -rf results
+python results.py --device cpu
+```
+
+Expected: `results/RESULTS.md` and `results/tables/*.tex`. Test bias-conflicting accuracy (%):
+
+| Model | CMNIST | C-CIFAR10 | BFFHQ | Avg. |
 |---|---|---|---|---|
 | Vanilla | 32.3 | 8.3 | 52.6 | 31.1 |
 | LfF | 73.3 | 39.2 | 64.2 | 58.9 |
 | JTT | 55.3 | 14.7 | 50.2 | 40.1 |
-| LC | 46.3 | **41.4** | 64.2 | 50.6 |
+| LC | 46.3 | 41.4 | 64.2 | 50.6 |
 | LDD | 75.6 | 18.5 | 59.4 | 51.2 |
-| **PoolForge** | **84.4** | 40.0 | **72.2** | **65.5** |
+| PoolForge | 84.4 | 40.0 | 72.2 | 65.5 |
+| LfF, seeds 0–2 | 70.6 ± 2.0 | 35.8 ± 3.8 | 62.3 ± 1.6 | 56.2 ± 2.1 |
+| PoolForge, seeds 0–2 | 83.2 ± 1.0 | 40.7 ± 0.8 | 71.2 ± 1.1 | 65.0 ± 0.8 |
 
-**Seeds 0, 1 and 2 (mean ± std):**
-
-| Method | CMNIST | C-CIFAR10 | BFFHQ | Avg. |
-|---|---|---|---|---|
-| LfF | 70.6 ± 2.0 | 35.8 ± 3.8 | 62.3 ± 1.6 | 56.2 ± 2.1 |
-| **PoolForge** | **83.2 ± 1.0** | **40.7 ± 0.8** | **71.2 ± 1.1** | **65.0 ± 0.8** |
-
-The unbiased and worst-group tables, the bias ratios and the ablations are in [results/RESULTS.md](results/RESULTS.md).
-BFFHQ has no bias-conflicting validation images, so every method selects its BFFHQ checkpoint on the test set.
-
-## Reproduce
-
-### 1. Install and download the data
+## Step 4. Write the test predictions
 
 ```bash
-pip install -r requirements.txt   # Python 3.10, PyTorch 2.5.1; a CUDA GPU for training, CPU is enough otherwise
-python prepare_data.py            # downloads the DisEnt release (CMNIST, C-CIFAR10, BFFHQ) into data/
+python predict.py --device cpu
 ```
 
-`prepare_data.py` downloads the dataset release of [DisEnt](https://github.com/kakaoenterprise/Learning-Debiased-Disentangled)
-from Google Drive, unzips it into `data/` and caches every split as `data/cache/*.npz`. You can also place the unzipped
-`cmnist/`, `cifar10c/` and `bffhq/` folders in `data/` yourself.
+Expected: 66 files `predictions/<model>/<benchmark>/seed<k>.csv` with columns
+`index, file, label, bias, bias_conflicting, prediction, confidence`.
 
-### 2. Reproduce every table from the shipped checkpoints (no training)
+## Step 5. Rebuild the figures and the report
 
 ```bash
-python results.py --device cpu    # evaluates all 66 checkpoints in runs/ -> results/RESULTS.md and results/tables/
-python predict.py --device cpu    # test predictions of every checkpoint -> predictions/<exp>/<benchmark>/seed<k>.csv
-python case_study.py --device cpu # case-study figures and statistics -> results/case_study/
-bash report/build.sh              # rebuilds report/report.pdf from the files above
+python case_study.py --device cpu
+bash report/build.sh
 ```
 
-`results.py` loads each `best.pt`, predicts the test set and computes the metrics from scratch. For every checkpoint,
-the bias-conflicting accuracy it computes equals the value logged during training (largest difference 0.0).
-Remove `results/` and `predictions/` first if you want to recompute them.
+Expected: `results/case_study/*.png` and `report/report.pdf`.
 
-Each prediction file has one row per test image: `index, file, label, bias, bias_conflicting, prediction, confidence`.
-`file` is the image path inside `data/`.
+## Step 6. Retrain (optional)
 
-To load a checkpoint yourself:
-
-```python
-import torch
-from poolforge.data import BENCHMARKS, load_data, predict_logits
-from poolforge.networks import network_for
-
-ckpt = torch.load("runs/poolforge/cmnist_1pct/seed0/best.pt", map_location="cpu", weights_only=False)
-model = network_for(ckpt["method"], ckpt["benchmark"], BENCHMARKS[ckpt["benchmark"]]["num_classes"])
-model.load_state_dict(ckpt["model"])
-test = load_data(ckpt["benchmark"], torch.device("cpu"))["test"]
-pred = predict_logits(model, ckpt["benchmark"], test["x"]).argmax(1)
-```
-
-### 3. Retrain (optional)
+`run.py` skips any run that already exists, so first move the shipped runs of the models you want to retrain:
 
 ```bash
-python run.py --list --group all                                   # what is present
-python run.py --exp poolforge --benchmark cmnist_1pct --seed 0 --gpus 0   # one run
-python run.py --group all --gpus 0,1 --per_gpu 2                   # every run of the report
+mkdir -p runs_shipped
+mv runs/vanilla runs/lff runs/jtt runs/lc runs/ldd runs_shipped/   # baselines
+mv runs/poolforge runs_shipped/                                     # PoolForge
+mv runs/poolforge_* runs_shipped/                                   # ablations
+mv runs/case_study runs_shipped/                                    # case study
 ```
 
-`run.py` skips any run whose folder already has `result.json`. To retrain a shipped run, move its folder away first,
-for example `mv runs/poolforge/cmnist_1pct/seed0 runs_shipped/`. Groups: `baselines`, `ours`, `ablations`,
-`case_study`; `--benchmark` and `--seed` narrow the selection.
+Then run the matching command. Put the GPU ids you have in `--gpus`.
 
-Training uses deterministic cuDNN. The pool generator upsamples with `F.interpolate`, whose backward pass on the GPU
-uses atomic additions, so a retrained PoolForge run matches the shipped one exactly until the generator starts (step
-2000) and then drifts slightly. On the CPU the training code is fully deterministic and reproduces the logged
-history of the original runs exactly. On CMNIST seed 0, two GPU retrains selected the same step as the shipped run and
-scored 84.34 and 84.38 against 84.41. All five baselines are fully deterministic on the GPU (CMNIST retrains repeat
-the shipped logs exactly).
+| Command | Models retrained | Runs | Time per run (one GPU) |
+|---|---|---|---|
+| `python run.py --group baselines --gpus 0,1` | Vanilla, JTT, LC, LDD (seed 0); LfF (seeds 0–2, plus seed 0 at the 0.5/2/5% ratios) | 21 | 2 min – 1 h (LDD on BFFHQ: 3 h) |
+| `python run.py --group ours --gpus 0,1` | PoolForge (seeds 0–2, plus seed 0 at the 0.5/2/5% ratios) | 15 | 30 min (CMNIST), 4 h (C-CIFAR10), 6 h (BFFHQ) |
+| `python run.py --group ablations --gpus 0,1` | the 8 PoolForge ablations (seed 0) | 24 | as PoolForge |
+| `python run.py --group case_study --gpus 0,1` | PoolForge seed 0, saving the images used in step 5 | 3 | as PoolForge |
+| `python run.py --group all --gpus 0,1 --per_gpu 2` | baselines, PoolForge and ablations | 60 | |
 
-Measured wall-clock time of the seed-0 runs (several runs shared each GPU, so these are upper bounds):
-
-| Benchmark | LfF | PoolForge |
-|---|---|---|
-| CMNIST | 2 min | 28 min |
-| C-CIFAR10 | 53 min | 3.9 h |
-| BFFHQ | 46 min | 5.7 h |
-
-### 4. Submission package
+To retrain a single run, move only its folder and name it:
 
 ```bash
-python make_submission.py         # submission.zip: code, predictions/ and runs/*/*/seed*/{best.pt,result.json,history.csv,train.log}
+mv runs/poolforge/cmnist_1pct/seed0 runs_shipped/
+python run.py --exp poolforge --benchmark cmnist_1pct --seed 0 --gpus 0
 ```
 
-## Layout
+Model names for `--exp`: `vanilla`, `lff`, `jtt`, `lc`, `ldd`, `poolforge`, `poolforge_no_reweight`,
+`poolforge_repeat`, `poolforge_no_gen`, `poolforge_gen_color`, `poolforge_gen_untargeted`, `poolforge_gen_batch`,
+`poolforge_no_pgd`, `poolforge_pgd_batch`, `case_study`.
+Benchmarks for `--benchmark`: `cmnist_1pct`, `cifar10c_1pct`, `bffhq_0.5pct`, `cmnist_0.5pct`, `cmnist_2pct`,
+`cmnist_5pct`, `cifar10c_0.5pct`, `cifar10c_2pct`, `cifar10c_5pct`.
 
-```
-poolforge/
-  data.py            dataset loading, caching, augmentation
-  networks.py        MLP (CMNIST), ResNet-20 (C-CIFAR10), ResNet-18 (BFFHQ), DisEnt network
-  metrics.py         group accuracies: bias-conflicting, unbiased, worst-group
-  trainer.py         training loop, evaluation, checkpoint selection, all hyperparameters
-  methods/
-    base.py          Vanilla (ERM)
-    lff.py           LfF
-    jtt.py           JTT
-    lc.py            Logit Correction
-    ldd.py           DisEnt / LDD
-    poolforge.py     PoolForge: memory pool, pool mixup, pool generator, pool PGD
-experiments.py       every experiment of the report (baselines, PoolForge, ablations, case study)
-run.py               multi-GPU training launcher
-results.py           evaluation of the checkpoints and result tables
-predict.py           test predictions of the checkpoints
-case_study.py        saved-image analysis, bias probe, best/worst test groups
-make_submission.py   zip of code, checkpoints and predictions
-prepare_data.py      dataset download
-runs/                every trained run of the report (checkpoints, logs, histories)
-predictions/         test predictions of every checkpoint
-results/             tables, per-run metrics and case-study figures produced by the scripts above
-report/              LaTeX source and PDF of the report
+Check progress:
+
+```bash
+python progress.py
 ```
 
-Each run folder, `runs/<experiment>/<benchmark>/seed<k>/`, contains:
+When training is done, repeat steps 3–5 to get the tables, predictions and report of the new runs.
 
-- `best.pt`: the selected checkpoint of the debiased model;
-- `history.csv`: all metrics at every evaluation step;
-- `result.json`: the selected step and its test score;
-- `train.log`: the full configuration and training progress.
+Expected: retrained baselines repeat the shipped results exactly. Retrained PoolForge runs differ slightly from the
+shipped ones; on CMNIST seed 0, two retrains gave 84.34 and 84.38 against 84.41 shipped.
 
-`runs/case_study/` holds the images saved during a repeated PoolForge seed-0 run (`case_step*.pt`), used by
-`case_study.py`.
+## Step 7. Build the submission zip
 
-## Experiments
+```bash
+python make_submission.py
+```
 
-| Experiment | Runs | Description |
-|---|---|---|
-| `vanilla`, `jtt`, `lc`, `ldd` | 3 benchmarks, seed 0 | baselines |
-| `lff` | 3 benchmarks × 3 seeds, 6 other bias ratios | LfF baseline |
-| `poolforge` | 3 benchmarks × 3 seeds, 6 other bias ratios | the method |
-| `poolforge_no_reweight` | 3 benchmarks, seed 0 | without LfF reweighting |
-| `poolforge_repeat` | 3 benchmarks, seed 0 | pool images repeated instead of mixed |
-| `poolforge_no_gen` | 3 benchmarks, seed 0 | without pool generator |
-| `poolforge_gen_color` | 3 benchmarks, seed 0 | color-only generator |
-| `poolforge_gen_untargeted` | 3 benchmarks, seed 0 | untargeted generator |
-| `poolforge_gen_batch` | 3 benchmarks, seed 0 | generator on batch images |
-| `poolforge_no_pgd` | 3 benchmarks, seed 0 | without pool PGD |
-| `poolforge_pgd_batch` | 3 benchmarks, seed 0 | PGD on batch images (BiasAdv) |
-| `case_study` | 3 benchmarks, seed 0 | PoolForge run that saves intermediate images |
-
-## Benchmarks
-
-| Benchmark | Target | Bias | Bias ratios | Backbone |
-|---|---|---|---|---|
-| Colored MNIST | digit | digit color | 0.5, 1, 2, 5% | 3-layer MLP |
-| Corrupted CIFAR-10 | object | corruption type | 0.5, 1, 2, 5% | ResNet-20 |
-| BFFHQ | age | gender | 0.5% | ResNet-18 |
-
-## Credits
-
-PoolForge reuses or modifies parts of earlier methods:
-
-- *Learning from Failure* (LfF, NeurIPS 2020): reweighting, unchanged.
-- *mixup* (ICLR 2018): pool mixup.
-- *Fighting Fire with Fire* (CDvG, ICML 2023): the idea behind the pool generator.
-- *BiasAdv* (CVPR 2023): pool PGD.
-
-The baselines are:
-
-- *Just Train Twice* (JTT, ICML 2021);
-- *Avoiding Spurious Correlations via Logit Correction* (LC, ICLR 2023);
-- *Learning Debiased Representation via Disentangled Feature Augmentation* (DisEnt, NeurIPS 2021).
-
-The datasets are the DisEnt release. Full references are in the report.
+Expected: `submission.zip` with the code, `predictions/` and every checkpoint in `runs/`.
