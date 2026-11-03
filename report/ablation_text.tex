@@ -1,17 +1,12 @@
-\textbf{Clear contributions.} Removing LfF reweighting costs the most ($-8.4$ on average; $-11.1$ on CMNIST and
-$-9.4$ on BFFHQ). Removing the generator costs $-7.1$, almost all on CMNIST ($-20.2$); on BFFHQ the run without the
-generator is slightly higher (71.0 vs.\ 70.0). Replacing the learned generator by random Gaussian noise of the same
-visible size costs $-4.4$ ($-6.4$ on C-CIFAR10), and generating from batch images instead of pool images costs
-$-4.1$ on CMNIST and $-2.5$ on C-CIFAR10.
+\textbf{Large effects.} Every variant lowers the average. Removing LfF reweighting costs the most ($-11.3$; $-14.4$
+on CMNIST, $-13.6$ on BFFHQ). Removing the generator costs $-7.9$, mostly on CMNIST ($-20.3$; $-1.9$ on C-CIFAR10,
+$-1.4$ on BFFHQ). Keeping only the generator's color matrix and residual (no learned filters and noise) costs $-4.7$,
+again mostly on CMNIST ($-14.9$), while C-CIFAR10 is slightly higher ($+1.4$). Repeating pool images instead of
+mixing them costs $-3.0$, most on C-CIFAR10 ($-5.3$).
 
-\textbf{Weak or mixed evidence.} Mixing pool images instead of repeating them helps on C-CIFAR10 ($+3.6$) and
-BFFHQ ($+2.2$) but not on CMNIST ($+0.1$). A random color edit plus noise is only $1.3$ points below the learned
-generator on average ($-0.5$ on CMNIST, $-2.4$ on C-CIFAR10, $-1.0$ on BFFHQ), so most of the generator's gain is
-explained by color-like edits on pool images. The color-only generator (without learned filters and noise) is worse
-on CMNIST ($-14.7$) but better on C-CIFAR10 ($+5.2$) and BFFHQ ($+7.2$); its average is within one point of the
-full model. The untargeted generator is below the targeted one on CMNIST ($-3.5$) and about equal on C-CIFAR10
-($-0.5$). Without pool PGD, CMNIST drops by $1.5$.
-
-\textbf{Not finished at the time of writing:} untargeted and batch generator on BFFHQ, pool PGD removed on C-CIFAR10
-and BFFHQ, and PGD on batch images (all benchmarks); their cells are marked ``--''. All ablations are single runs
-(seed 0), so differences of one or two points should be read with care.
+\textbf{Small effects.} An untargeted generator ($-1.5$), pool PGD removed ($-0.9$), the generator on batch images
+($-0.6$) and PGD on batch images ($-0.2$) change the average by less than two points. Their effects differ by
+benchmark: drawing the generator's or PGD's images from the pool instead of the batch helps on CMNIST ($+5.2$ and
+$+3.5$) but is worse on C-CIFAR10 ($-2.9$ and $-2.1$); pool PGD helps on C-CIFAR10 ($+3.0$) and changes CMNIST and
+BFFHQ by $0.2$. All ablations are single runs (seed 0), and Table~\ref{tab:seeds} shows seed-to-seed spreads of
+0.8--1.1 points for PoolForge, so the differences in this paragraph are within run-to-run variation.

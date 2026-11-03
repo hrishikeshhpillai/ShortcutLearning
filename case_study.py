@@ -54,11 +54,13 @@ def train_probe(benchmark, device, out_dir, steps=3000):
     path = os.path.join(out_dir, f"bias_probe_{benchmark}.pt")
     info = BENCHMARKS[benchmark]
     data = load_data(benchmark, device)
+    torch.manual_seed(0)
     net = probe_net(benchmark, info["num_biases"]).to(device)
     if os.path.exists(path):
         net.load_state_dict(torch.load(path, map_location=device))
         return net.eval(), json.load(open(path + ".json"))["test_acc"]
-    torch.manual_seed(0)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
     train = data["train"]
     counts = torch.bincount(train["bias"], minlength=info["num_biases"]).float()

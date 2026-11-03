@@ -41,9 +41,11 @@ needed to reproduce every number in it. PoolForge extends Learning from Failure 
 pool that collects the training images a biased model keeps failing on, and with three sources of extra training images
 built from that pool: same-class mixup, a learned edit generator judged by the biased model, and a PGD perturbation.
 All models are trained from scratch on Colored MNIST, Corrupted CIFAR-10 and BFFHQ with the same code, backbone and
-selection rule. With seed 0, PoolForge reaches \PFavg\ average bias-conflicting test accuracy against \LFFavg\ for LfF.
-We report the setup, baselines, results at four bias ratios, ablations of every part, and a case study of the images
-each part produces and of the test groups on which PoolForge does best and worst.
+selection rule. With seed 0, PoolForge reaches \PFavg\ average bias-conflicting test accuracy against \LFFavg\ for LfF;
+over three seeds it reaches $65.0\pm0.8$ against $56.2\pm2.1$. We report the setup, baselines, results at four bias
+ratios, ablations of every part, and a case study of the images each part produces and of the test groups on which
+PoolForge does best and worst. Every checkpoint behind these numbers is released with the code; re-evaluating them
+reproduces every table exactly.
 \end{abstract}
 
 \section{Problem setting}
@@ -97,8 +99,7 @@ is a two-layer convolutional encoder conditioned on $k$ that outputs: a $3\times
 a color shift, a low-resolution residual ($8\times8$, amplitude $0.5$), a weighted sum of four learned $5\times5$
 filters applied to $x$, and per-channel Gaussian noise with a learned scale. $G$ minimizes
 $\mathrm{CE}(f_b(G(x,k)),k)+\|G(x,k)-x\|_2^2$ with Adam; $f_d$ receives $\mathrm{CE}(f_d(G(x,k)),y)$. $f_b$ is in
-evaluation mode and receives no gradient from this term. All resizing inside $G$ is done by fixed matrix
-multiplication so that training is deterministic (Section~\ref{sec:setup}).
+evaluation mode and receives no gradient from this term.
 
 \subsection{\pE\ Pool PGD}
 At every step we draw 64 pool images and run 5 steps of PGD~\cite{madry2018pgd} with step size $\epsilon/4$,
@@ -134,6 +135,7 @@ classification, bias = digit color, $28\times28$. \textbf{Corrupted CIFAR-10} (C
 object classification, bias = one of 10 corruption types, $32\times32$. \textbf{BFFHQ}~\cite{karras2019ffhq,lee2021ldd}:
 age (young/old), bias = gender, $128\times128$ resized to $224\times224$. Each split is a fixed list of files, read in
 sorted order and cached once. The bias-ratio variants change only the training and validation sets.
+Figure~\ref{fig:pipeline} shows example images and the whole workflow from the datasets to the results.
 
 \begin{table}[t]
 \centering\footnotesize\setlength{\tabcolsep}{2.6pt}
@@ -141,6 +143,15 @@ sorted order and cached once. The bias-ratio variants change only the training a
 \caption{Number of images and of bias-conflicting images (conf.) per split.}
 \label{tab:data}
 \end{table}
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{\input{pipeline.tex}}
+\caption{Workflow from the datasets to this report. Thumbnails are training images; in each pair both images have the
+same class, the left one with the class's majority bias (bias-aligned) and the right one with another bias
+(bias-conflicting). Steps 3a, 3b and 4 work from the shipped checkpoints without training (Section~\ref{sec:repro}).}
+\label{fig:pipeline}
+\end{figure}
 
 \section{Baselines}
 \label{sec:baselines}
@@ -180,11 +191,10 @@ Table~\ref{tab:settings} lists the training settings. All networks are trained f
 \textbf{Selection:} we report the test score of the evaluation step with the best bias-conflicting accuracy on the
 selection split. BFFHQ's validation set has no conflicting images (Table~\ref{tab:data}), so for BFFHQ the selection
 split is the test set, for every method. \textbf{PoolForge hyperparameters} are the values in Section~\ref{sec:method}
-and are identical on all benchmarks and ratios. \textbf{Seeds:} every run in this report uses seed 0.
-\textbf{Determinism:} training runs with
-\texttt{torch.use\_deterministic\_algorithms(True)}, deterministic cuDNN and
-\texttt{CUBLAS\_WORKSPACE\_CONFIG=:4096:8}; two separate runs of PoolForge on CMNIST seed 0 produced byte-identical
-training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
+and are identical on all benchmarks and ratios. \textbf{Seeds:} every method is run with seed 0; PoolForge and LfF on the three main benchmarks are also run with
+seeds 1 and 2 (Table~\ref{tab:seeds}). Ablations and other bias ratios use seed 0 only.
+\textbf{Determinism:} \input{rerun_text.tex}
+\textbf{Hardware:} NVIDIA RTX A5000 (24\,GB), PyTorch 2.5.1, CUDA 12.1.
 
 \section{Results}
 \label{sec:results}
@@ -203,6 +213,13 @@ training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
 \label{tab:other}
 \end{table}
 
+\begin{table}[t]
+\centering\footnotesize\setlength{\tabcolsep}{2.5pt}
+\resizebox{\columnwidth}{!}{\input{tables/three_seeds.tex}}
+\caption{Test bias-conflicting accuracy (\%), mean $\pm$ standard deviation over seeds 0, 1 and 2.}
+\label{tab:seeds}
+\end{table}
+
 \begin{table*}[t]
 \centering\footnotesize
 \input{tables/ratio.tex}
@@ -214,15 +231,13 @@ training logs. \textbf{Hardware:} one NVIDIA GPU per run, PyTorch 2.5.1.
 
 \section{Ablations}
 \label{sec:ablation}
-Each row of Table~\ref{tab:abl} changes one part of PoolForge; seed 0. The three \emph{random} rows replace the
-learned generator by edits without learning: Gaussian noise with standard deviation 0.45 (mean visible change close to
-the generator's) or 0.23, and a random color matrix $I+0.5\,U(-1,1)^{3\times3}$ with a random color shift
-$U(-1,1)^3$ plus Gaussian noise (0.23). These rows use the same pool images, number of images and loss weight as the
-generator.
+Each row of Table~\ref{tab:abl} changes one part of PoolForge and keeps everything else, including all
+hyperparameters; seed 0. ``Batch images'' rows draw the 64 source images from the current training batch instead of the
+pool; ``untargeted'' trains $G$ without a target class to make $f_b$ wrong on any class.
 
 \begin{table}[t]
 \centering\footnotesize\setlength{\tabcolsep}{2.2pt}
-\input{tables/ablation.tex}
+\resizebox{\columnwidth}{!}{\input{tables/ablation.tex}}
 \caption{Ablations, test bias-conflicting accuracy (\%), seed 0. $\Delta$: change of the average against full PoolForge.}
 \label{tab:abl}
 \end{table}
@@ -286,16 +301,28 @@ Figure~\ref{fig:outcomes} shows random test images by outcome.
 
 \section{Reproduction}
 \label{sec:repro}
+Figure~\ref{fig:pipeline} shows the release. Every number in this report is computed from the files in
+\texttt{runs/}; nothing is typed in by hand.
 \begin{enumerate}\setlength\itemsep{0pt}
-\item \texttt{pip install -r requirements.txt} (Python 3.10+, CUDA GPU).
+\item \texttt{pip install -r requirements.txt} (Python 3.10, PyTorch 2.5.1, one CUDA GPU; a CPU is enough for steps 3--4).
 \item \texttt{python prepare\_data.py} downloads the DisEnt release into \texttt{data/} and builds the caches.
-\item \texttt{python run.py --group all --gpus 0,1} trains every run of this report into \texttt{runs/}; finished runs are skipped. \texttt{--group baselines|ours|ablations|case\_study} or \texttt{--exp NAME} select a subset; \texttt{--list} shows what is done.
-\item \texttt{python results.py} evaluates the saved checkpoints and writes all tables to \texttt{results/}.
-\item \texttt{python case\_study.py} writes the case-study figures and statistics.
-\item \texttt{bash report/build.sh} rebuilds this PDF from those files.
+\item \texttt{python results.py} loads every shipped checkpoint, evaluates it on the test set and writes all tables
+to \texttt{results/}. For all 66 checkpoints the evaluated bias-conflicting accuracy equals the value logged during
+training (largest difference 0.0).
+\item \texttt{python predict.py} writes one CSV per checkpoint to \texttt{predictions/} (test file, label, bias,
+prediction, confidence).
+\item \texttt{python case\_study.py} and \texttt{bash report/build.sh} rebuild the figures and this PDF.
+\item Retraining (optional): \texttt{python run.py --group all --gpus 0,1} trains every run into \texttt{runs/};
+finished runs are skipped, so delete or move a run folder to retrain it. \texttt{--exp NAME --benchmark B --seed S}
+selects one run and \texttt{--list} shows what is present.
 \end{enumerate}
-Each run writes \texttt{history.csv} (all metrics at every evaluation), \texttt{result.json} and the selected
-checkpoint \texttt{best.pt}. \input{runtime_text.tex}
+Each run folder holds \texttt{best.pt} (the selected checkpoint of $f_d$), \texttt{history.csv} (all metrics at every
+evaluation), \texttt{train.log} (full configuration and progress) and \texttt{result.json}. \input{runtime_text.tex}
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+\input{conclusion_text.tex}
 
 {\small
 \bibliographystyle{ieeenat_fullname}

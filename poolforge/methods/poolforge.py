@@ -8,30 +8,6 @@ from poolforge.data import CIFAR_MEAN, CIFAR_STD, train_batch
 from poolforge.methods.lff import LfF
 
 
-def pool_matrix(n_in, n_out, device):
-    m = torch.zeros(n_out, n_in, device=device)
-    for i in range(n_out):
-        lo, hi = (i * n_in) // n_out, -(-((i + 1) * n_in) // n_out)
-        m[i, lo:hi] = 1 / (hi - lo)
-    return m
-
-
-def bilinear_matrix(n_in, n_out, device):
-    pos = ((torch.arange(n_out, device=device) + 0.5) * n_in / n_out - 0.5).clamp(min=0)
-    lo = pos.floor().long().clamp(max=n_in - 1)
-    hi = (lo + 1).clamp(max=n_in - 1)
-    w = pos - lo
-    m = torch.zeros(n_out, n_in, device=device)
-    m[torch.arange(n_out), lo] += 1 - w
-    m[torch.arange(n_out), hi] += w
-    return m
-
-
-def resize(x, size, matrix):
-    rows, cols = matrix(x.shape[-2], size[0], x.device).to(x.dtype), matrix(x.shape[-1], size[1], x.device).to(x.dtype)
-    return rows @ x @ cols.T
-
-
 class EditGenerator(nn.Module):
     def __init__(self, eps, num_classes=0, ops=0):
         super().__init__()
@@ -55,7 +31,7 @@ class EditGenerator(nn.Module):
             h = F.relu(h + self.cond(target)[:, :, None, None])
         p = self.affine(h.mean((2, 3)))
         a = torch.eye(3, device=x.device) + 0.5 * torch.tanh(p[:, :9]).view(-1, 3, 3)
-        r = resize(self.residual(resize(h, (8, 8), pool_matrix)), x.shape[-2:], bilinear_matrix)
+        r = F.interpolate(self.residual(F.adaptive_avg_pool2d(h, 8)), size=x.shape[-2:], mode="bilinear", align_corners=False)
         out = torch.einsum("bij,bjhw->bihw", a, x) + torch.tanh(p[:, 9:])[:, :, None, None] + self.eps * torch.tanh(r)
         if self.ops:
             q = torch.tanh(self.op_head(h.mean((2, 3))))
@@ -70,7 +46,7 @@ class PoolForge(LfF):
         super().__init__(ctx)
         args = ctx.args
         self.pool_count = torch.zeros(ctx.n_train, device=ctx.device)
-        self.pool_fraction, self.gen_log, self.pgd_log = float("nan"), [], []
+        self.pool_fraction, self.fool_log = float("nan"), []
         if args.gen in ("full", "color"):
             self.generator = EditGenerator(args.gen_eps, 0 if args.gen_untargeted else ctx.num_classes,
                                            args.gen_ops if args.gen == "full" else 0).to(ctx.device)
@@ -142,21 +118,8 @@ class PoolForge(LfF):
         self.model_b.train(mode)
         loss_g = fool + args.gen_reg * (xg - xs).pow(2).mean()
         grads = torch.autograd.grad(loss_g, list(self.generator.parameters()), retain_graph=True)
-        self.gen_log.append((p_b < 0.5).float().mean().item())
+        self.fool_log.append((p_b < 0.5).float().mean().item())
         return F.cross_entropy(self.model(xg), ys), grads
-
-    def random_edit(self, x):
-        args = self.ctx.args
-        scale = 1.0 if self.ctx.benchmark.startswith("cmnist") else 1 / torch.tensor(CIFAR_STD, device=x.device)[:, None, None]
-        out = x
-        if args.gen == "random":
-            a = torch.eye(3, device=x.device) + 0.5 * (2 * torch.rand(len(x), 3, 3, device=x.device) - 1)
-            out = torch.einsum("bij,bjhw->bihw", a, x) + (2 * torch.rand(len(x), 3, 1, 1, device=x.device) - 1)
-        return out + args.noise_std * scale * torch.randn_like(x)
-
-    def noise_loss(self, x, y):
-        xs, ys = self.source(x, y, self.ctx.args.gen_src)
-        return F.cross_entropy(self.model(self.random_edit(xs)), ys)
 
     def pgd_eps(self):
         return self.ctx.args.pgd_eps * (1.0 if self.ctx.benchmark.startswith("cmnist") else 4.0)
@@ -174,7 +137,7 @@ class PoolForge(LfF):
             g, = torch.autograd.grad(obj, delta)
             delta = (delta + eps / 4 * g.sign()).clamp(-eps, eps).detach().requires_grad_(True)
         with torch.no_grad():
-            self.pgd_log.append((self.model_b(xs + delta).argmax(1) != ys).float().mean().item())
+            self.fool_log.append((self.model_b(xs + delta).argmax(1) != ys).float().mean().item())
         self.model_b.train(modes[0])
         self.model.train(modes[1])
         return F.cross_entropy(self.model(xs + delta.detach()), ys)
@@ -191,8 +154,6 @@ class PoolForge(LfF):
             if args.gen in ("full", "color"):
                 gen, gen_grads = self.gen_loss(x, y)
                 loss = loss + args.gen_weight * gen
-            elif args.gen != "none":
-                loss = loss + args.gen_weight * self.noise_loss(x, y)
             if args.pgd_weight > 0:
                 loss = loss + args.pgd_weight * self.pgd_loss(x, y)
         self.optimizer_b.zero_grad(set_to_none=True)
@@ -227,8 +188,6 @@ class PoolForge(LfF):
         images = dict(x=xs, mix=0.5 * xs + 0.5 * xp)
         if args.gen in ("full", "color"):
             images["gen"] = self.generator(xs) if args.gen_untargeted else self.generator(xs, F.one_hot(k, c).float())
-        elif args.gen != "none":
-            images["gen"] = self.random_edit(xs)
         if args.pgd_weight > 0:
             delta = torch.zeros_like(xs)
             for _ in range(args.pgd_steps):

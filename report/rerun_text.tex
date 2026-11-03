@@ -1,0 +1,7 @@
+training uses deterministic cuDNN kernels. With the same seed, retraining a baseline repeats the shipped training
+log exactly (checked for all five baselines on CMNIST over the full run). PoolForge matches exactly until the
+generator starts at step 2000; after that, the backward pass of the bilinear upsampling inside $G$ uses atomic
+additions on the GPU, so retrained runs drift slightly. On CMNIST seed 0, two GPU retrains selected the same step
+(19{,}975) as the shipped run and reached 84.34 and 84.38 test bias-conflicting accuracy, against 84.41 shipped.
+On the CPU the training code is deterministic and repeats the logged history of the original V11 code exactly
+(CMNIST, all 101 evaluations).

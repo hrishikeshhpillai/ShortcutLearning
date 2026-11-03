@@ -1,0 +1,9 @@
+{
+ "benchmark": "cmnist_1pct",
+ "seed": 0,
+ "selection_split": "valid",
+ "best_step": 9635,
+ "test_conflicting": 80.39174565394173,
+ "test_aligned": 76.65936733190316,
+ "source": "explore_gn_untargeted/cmnist_1pct/seed0"
+}

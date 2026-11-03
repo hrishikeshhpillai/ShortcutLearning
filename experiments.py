@@ -28,9 +28,6 @@ for _name, _flags, _label in [
         ("gen_color", ["--gen", "color"], "color-only generator (no learned filters and noise)"),
         ("gen_untargeted", ["--gen_untargeted"], "untargeted generator"),
         ("gen_batch", ["--gen_src", "batch"], "generator on batch images"),
-        ("gen_noise", ["--gen", "noise", "--noise_std", "0.45"], "generator replaced by random Gaussian noise (same visible change)"),
-        ("gen_noise_small", ["--gen", "noise"], "generator replaced by random Gaussian noise, half size"),
-        ("gen_random", ["--gen", "random"], "generator replaced by random color edit + noise"),
         ("no_pgd", ["--pgd_weight", "0"], "without pool PGD"),
         ("pgd_batch", ["--pgd_src", "batch"], "PGD on batch images (BiasAdv)")]:
     EXPERIMENTS[f"poolforge_{_name}"] = exp("ablations", f"PoolForge, {_label}", "poolforge", _flags)

@@ -1,0 +1,9 @@
+{
+ "benchmark": "cifar10c_1pct",
+ "seed": 1,
+ "selection_split": "valid",
+ "best_step": 23128,
+ "test_conflicting": 40.18888888888888,
+ "test_aligned": 51.5,
+ "source": "explore_ga_no_newton/cifar10c_1pct/seed1"
+}

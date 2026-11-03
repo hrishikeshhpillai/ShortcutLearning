@@ -44,8 +44,7 @@ def parser():
     p.add_argument("--mix", default="mix", choices=["mix", "repeat", "none"])
     p.add_argument("--mix_batch", type=int, default=32)
     p.add_argument("--mix_weight", type=float, default=1.0)
-    p.add_argument("--gen", default="full", choices=["full", "color", "noise", "random", "none"])
-    p.add_argument("--noise_std", type=float, default=0.23)
+    p.add_argument("--gen", default="full", choices=["full", "color", "none"])
     p.add_argument("--gen_untargeted", action="store_true")
     p.add_argument("--gen_src", default="pool", choices=["pool", "batch"])
     p.add_argument("--gen_batch", type=int, default=64)
@@ -74,8 +73,6 @@ def train(args, benchmark, seed, out):
     np.random.seed(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.use_deterministic_algorithms(True)
     device = torch.device("cuda")
     cfg = settings(args.method, benchmark)
     if args.num_steps:
@@ -99,7 +96,7 @@ def train(args, benchmark, seed, out):
     log = csv.writer(history)
     log.writerow(["step", "valid_conflicting", "valid_aligned", "test_conflicting", "test_aligned",
                   "biased_valid_conflicting", "pool_fraction", "pool_precision", "pool_recall", "weight_ratio",
-                  "gen_fool", "pgd_fool"])
+                  "fool_rate"])
     conflicting = train_split["bias"] != train_split["aligned_bias"][train_split["y"]]
     dump_steps = {min(int(f * cfg["num_steps"]), cfg["num_steps"] - 1) for f in args.dump_at}
     best = dict(score=-1.0, step=-1)
@@ -113,7 +110,7 @@ def train(args, benchmark, seed, out):
 
     for step in range(cfg["num_steps"]):
         if method.sample_prob is not None:
-            index = torch.multinomial(method.sample_prob.cpu(), cfg["batch_size"], replacement=True).to(device)
+            index = torch.multinomial(method.sample_prob, cfg["batch_size"], replacement=True)
         else:
             if not batches:
                 batches = list(torch.randperm(ctx.n_train, device=device).split(cfg["batch_size"]))
@@ -138,7 +135,7 @@ def train(args, benchmark, seed, out):
                 hit = (mask & conflicting).sum().item()
                 pool = [method.pool_fraction, hit / max(mask.sum().item(), 1), hit / max(conflicting.sum().item(), 1)]
             log.writerow([step, *scores["valid"], *scores["test"], method.biased_valid(), *pool,
-                          mean_and_clear("weight_log"), mean_and_clear("gen_log"), mean_and_clear("pgd_log")])
+                          mean_and_clear("weight_log"), mean_and_clear("fool_log")])
             history.flush()
             score = scores[selection_split][0]
             if score > best["score"]:

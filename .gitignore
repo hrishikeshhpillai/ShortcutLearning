@@ -1,12 +1,8 @@
 /data
-/runs/
-/verify.log
+/submission.zip
 __pycache__/
 *.pyc
 .DS_Store
-/runs_all.log
-/logs_*.txt
-/runs_*.log
 report/*.aux
 report/*.log
 report/*.out
@@ -16,4 +12,3 @@ report/*.bbl
 report/*.blg
 report/*.brf
 report/flowchart_standalone.pdf
-results/case_study/bias_probe_*.pt*

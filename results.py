@@ -125,6 +125,20 @@ def write_tables(table, out):
         "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
     lines += md
 
+    rows, md = [], ["\n### Three seeds (0, 1, 2), test bias-conflicting % (mean ± std)\n",
+                    "| Method | " + " | ".join(SHORT[b] for b in MAIN) + " | Avg. |\n|---|" + "---|" * (len(MAIN) + 1)]
+    for name in ("lff", "poolforge"):
+        vals = [mean_std(table, name, b, seeds=(0, 1, 2)) for b in MAIN]
+        per_seed = [np.mean([table[name][b][s]["conflicting"] for b in MAIN]) for s in (0, 1, 2)]
+        avg, avg_std = float(np.mean(per_seed)), float(np.std(per_seed))
+        rows.append(("\\rowcolor{ours}" if name == "poolforge" else "") + " & ".join(
+            [NAMES[name]] + [cell(m, s) for m, s, _ in vals] + [cell(avg, avg_std)]) + " \\\\")
+        md.append(f"| {NAMES[name]} | " + " | ".join(f"{m:.1f} ± {s:.1f}" for m, s, _ in vals) + f" | {avg:.1f} ± {avg_std:.1f} |")
+    open(os.path.join(out, "three_seeds.tex"), "w").write(
+        "\\begin{tabular}{lcccc}\n\\toprule\nMethod & " + " & ".join(SHORT[b] for b in MAIN) +
+        " & Avg. \\\\\n\\midrule\n" + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
+    lines += md
+
     ablations = ["poolforge"] + [n for n in EXPERIMENTS if EXPERIMENTS[n]["group"] == "ablations"]
     ref = [mean_std(table, "poolforge", b, seeds=(0,))[0] for b in MAIN]
     rows, md = [], ["\n### Ablations (seed 0, test bias-conflicting %)\n",
