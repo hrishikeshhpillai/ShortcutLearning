@@ -1,9 +1,0 @@
-{
- "benchmark": "bffhq_0.5pct",
- "seed": 0,
- "selection_split": "test",
- "best_step": 7000,
- "test_conflicting": 71.0,
- "test_aligned": 71.39999999999999,
- "source": "explore_gn_untargeted/bffhq_0.5pct/seed0"
-}

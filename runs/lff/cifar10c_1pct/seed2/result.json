@@ -1,9 +1,0 @@
-{
- "benchmark": "cifar10c_1pct",
- "seed": 2,
- "selection_split": "valid",
- "best_step": 26068,
- "test_conflicting": 37.71111111111111,
- "test_aligned": 61.3,
- "source": "final_lff/cifar10c_1pct/seed2"
-}

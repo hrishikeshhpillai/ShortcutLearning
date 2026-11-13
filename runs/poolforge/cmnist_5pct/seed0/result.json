@@ -1,9 +1,0 @@
-{
- "benchmark": "cmnist_5pct",
- "seed": 0,
- "selection_split": "valid",
- "best_step": 21150,
- "test_conflicting": 90.57317410774534,
- "test_aligned": 79.49021380915235,
- "source": "explore_ga_no_newton/cmnist_5pct/seed0"
-}

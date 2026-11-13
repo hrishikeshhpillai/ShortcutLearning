@@ -1,9 +1,0 @@
-{
- "benchmark": "bffhq_0.5pct",
- "seed": 1,
- "selection_split": "test",
- "best_step": 11999,
- "test_conflicting": 69.6,
- "test_aligned": 70.19999999999999,
- "source": "explore_ga_no_newton/bffhq_0.5pct/seed1"
-}

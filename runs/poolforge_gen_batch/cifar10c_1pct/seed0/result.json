@@ -1,9 +1,0 @@
-{
- "benchmark": "cifar10c_1pct",
- "seed": 0,
- "selection_split": "valid",
- "best_step": 8624,
- "test_conflicting": 42.86666666666667,
- "test_aligned": 59.80000000000001,
- "source": "explore_gn_gen_batch/cifar10c_1pct/seed0"
-}

@@ -1,50 +1,52 @@
 \begin{tikzpicture}[
-  box/.style={draw, rounded corners=3pt, thick, align=center, minimum height=1.2cm, inner sep=4pt, fill=white, text width=#1},
-  box/.default=3.0cm,
-  arr/.style={-{Stealth[length=2.4mm]}, thick},
-  lab/.style={font=\footnotesize, align=center, fill=white, inner sep=1.5pt}]
-\newcommand{\img}[2]{\includegraphics[width=1.25cm]{figures/thumb_#1_#2.png}}
-\newcommand{\pr}[2]{\parbox[t]{1.3cm}{\centering\scriptsize $f_b$:\,\csname #1#2b\endcsname\\$f_d$:\,\csname #1#2d\endcsname}}
-\newcommand{\stage}[1]{\begin{tabular}{@{}c@{\hspace{3pt}}c@{\hspace{3pt}}c@{}}
-  \img{cmnist_1pct}{#1} & \img{cifar10c_1pct}{#1} & \img{bffhq_0.5pct}{#1}\\[-1pt]
-  \pr{cmnist}{#1} & \pr{cifarc}{#1} & \pr{bffhq}{#1}\end{tabular}}
-\newcommand{\bname}[1]{\parbox[t]{1.3cm}{\centering\scriptsize #1}}
+  font=\small,
+  box/.style={draw=slate,rounded corners=2pt,line width=0.6pt,align=center,inner sep=4pt,fill=white,text width=#1},
+  arr/.style={-{Stealth[length=1.6mm]},line width=0.6pt},
+  lab/.style={font=\footnotesize,fill=white,inner sep=1pt}]
+\newcommand{\img}[2]{\includegraphics[width=0.83cm]{figures/thumb_#1_#2.png}}
+\newcommand{\pr}[2]{\parbox[t]{1.1cm}{\centering\footnotesize $f_b$:\,\csname #1#2b\endcsname\\$f_d$:\,\csname #1#2d\endcsname}}
+\newcommand{\stage}[1]{\begin{tabular}{@{}c@{\hspace{1pt}}c@{\hspace{1pt}}c@{}}
+  \img{cmnist_1pct}{#1}&\img{cifar10c_1pct}{#1}&\img{bffhq_0.5pct}{#1}\\
+  \pr{cmnist}{#1}&\pr{cifarc}{#1}&\pr{bffhq}{#1}\end{tabular}}
+\newcommand{\bname}[1]{\parbox[t]{0.98cm}{\centering\scriptsize #1}}
+\newcommand{\trainimg}[2]{\includegraphics[width=0.65cm]{figures/thumb_#1_train_#2.png}}
 
-\node[box=4.6cm] (x) at (0,0) {\textbf{Training batch} $(x,y)$\\[2pt]
-  \begin{tabular}{@{}r@{\hspace{3pt}}c@{\hspace{3pt}}c@{\hspace{3pt}}c@{}}
-  & {\scriptsize CMNIST} & {\scriptsize C-CIFAR10} & {\scriptsize BFFHQ}\\
-  {\scriptsize $y$} & {\scriptsize \cmnisty} & {\scriptsize \cifarcy} & {\scriptsize \bffhqy}\\
-  \rotatebox{90}{\scriptsize\ aligned} & \img{cmnist_1pct}{train_aligned} & \img{cifar10c_1pct}{train_aligned} & \img{bffhq_0.5pct}{train_aligned}\\[-2pt]
-  & \bname{\cmnisttrainaligned} & \bname{\cifarctrainaligned} & \bname{\bffhqtrainaligned}\\
-  \rotatebox{90}{\scriptsize conflicting} & \img{cmnist_1pct}{train_conflicting} & \img{cifar10c_1pct}{train_conflicting} & \img{bffhq_0.5pct}{train_conflicting}\\[-2pt]
-  & \bname{\cmnisttrainconflicting} & \bname{\cifarctrainconflicting} & \bname{\bffhqtrainconflicting}
-  \end{tabular}};
-\node[box=2.9cm, draw=lff] (fb) at (5.6,2.3) {\textbf{Biased model} $f_b$\\GCE loss};
-\node[box=2.9cm, draw=lff] (fd) at (5.6,-2.6) {\textbf{Debiased model} $f_d$\\(kept for test)};
-\node[box=2.5cm, draw=lff] (ema) at (9.4,0) {Per-sample EMA losses $\ell_b,\ \ell_d$};
+\node[box=3.65cm] (x) at (0,0) {\textbf{Training batch}\\
+  \begingroup\renewcommand{\arraystretch}{0.72}
+  \begin{tabular}{@{}r@{\hspace{1pt}}c@{\hspace{1pt}}c@{\hspace{1pt}}c@{}}
+  &{\scriptsize\shortstack{Colored\\MNIST}}&{\scriptsize\shortstack{Corrupted\\CIFAR-10}}&{\scriptsize BFFHQ}\\
+  {\scriptsize $y$}&{\scriptsize \cmnisty}&{\scriptsize \cifarcy}&{\scriptsize \bffhqy}\\
+  {\scriptsize A}&\trainimg{cmnist_1pct}{aligned}&\trainimg{cifar10c_1pct}{aligned}&\trainimg{bffhq_0.5pct}{aligned}\\
+  &\bname{\cmnisttrainaligned}&\bname{\cifarctrainaligned}&\bname{\bffhqtrainaligned}\\
+  {\scriptsize C}&\trainimg{cmnist_1pct}{conflicting}&\trainimg{cifar10c_1pct}{conflicting}&\trainimg{bffhq_0.5pct}{conflicting}\\
+  &\bname{\cmnisttrainconflicting}&\bname{\cifarctrainconflicting}&\bname{\bffhqtrainconflicting}
+  \end{tabular}\endgroup};
+\node[box=1.7cm] (fb) at (3.35,0.72) {\textbf{Biased} $f_b$\\GCE training};
+\node[box=1.7cm] (fd) at (3.35,-0.72) {\textbf{Debiased} $f_d$\\test model};
+\node[box=1.55cm] (ema) at (5.65,0) {Per-image\\loss EMAs};
+\node[box=2.4cm,fill=mist] (w) at (8.2,0) {\textbf{\ding{192} LfF weights}\\Weight originals};
+\node[box=3.65cm,line width=0.9pt] (loss) at (12.3,0) {\textbf{Train the debiased model}\\Weighted original loss\\$+$ three pool-view losses};
 
-\node[box=4.6cm, draw=lff, fill=lff!8] (w) at (14.2,7.4) {\textcolor{lff}{\textbf{\ding{192} LfF reweighting}}\\$w=\ell_b/(\ell_b+\ell_d)$, weighted CE};
-\node[box=4.6cm, draw=pool, fill=pool!8] (pool) at (14.2,0.6) {\textcolor{pool}{\textbf{\ding{193} Memory pool}}\\decayed counts of top-$k$ $\ell_b$\\$k$: 1\% $\to$ adaptive\\[2pt]
-  \stage{x}};
-\node[box=4.9cm, draw=mix, fill=mix!8] (mixup) at (20.6,0.6) {\textcolor{mix!70!black}{\textbf{\ding{194} Pool mixup}}\\32 same-class pool pairs\\$\tilde x=\lambda x_a+(1-\lambda)x_b$\\CE$(f_d(\tilde x),y)$\\[2pt]
-  \stage{mix}};
-\node[box=5.6cm, draw=gen, fill=gen!8] (gen) at (20.6,-6.0) {\textcolor{gen!80!black}{\textbf{\ding{195} Pool generator} $G$}\\64 pool images, target class $k\neq y$\\learned color matrix, filters and noise\\$G$: CE$(f_b(G(x,k)),k)$; \ $f_d$: CE$(f_d(G(x,k)),y)$\\[2pt]
-  {\scriptsize $k$ = \cmnistk\ / \cifarck\ / \bffhqk}\\[1pt]\stage{gen}};
-\node[box=4.9cm, draw=adv, fill=adv!8] (adv) at (20.6,7.2) {\textcolor{adv}{\textbf{\ding{196} Pool PGD}}\\64 pool images, 5 steps:\\$\uparrow$CE$(f_b)$, $\downarrow$CE$(f_d)$, $\|\delta\|_\infty\le\epsilon$; \ CE$(f_d(x+\delta),y)$\\[2pt]
-  \stage{pgd}};
-\node[box=2.4cm, very thick] (loss) at (26.4,0.6) {\textbf{Total loss} on $f_d$\\\ding{192} + \ding{194} + \ding{195} + \ding{196}};
+\node[box=3.45cm,fill=mist] (pool) at (0,-3.6) {\textbf{\ding{193} Memory pool}\\Retain hard samples\\[2pt]\stage{x}};
+\node[box=3.45cm,fill=mist] (mixup) at (4.1,-3.6) {\textbf{\ding{194} Pool mixup}\\Same-class pairs\\[2pt]\stage{mix}};
+\node[box=3.45cm,fill=mist] (gen) at (8.2,-3.6) {\textbf{\ding{195} Targeted generator}\\{\footnotesize targets: \cmnistk\ / \cifarck\ / \bffhqk}\\[2pt]\stage{gen}};
+\node[box=3.45cm,fill=mist] (adv) at (12.3,-3.6) {\textbf{\ding{196} Pool PGD}\\Bias-adversarial views\\[2pt]\stage{pgd}};
 
-\draw[arr] (x.east) -- ++(0.5,0) |- (fb.west);
-\draw[arr] (x.east) -- ++(0.5,0) |- (fd.west);
-\draw[arr] (fb.east) -| node[lab, pos=0.25, above]{$\ell_b$} (ema.north);
-\draw[arr] (fd.east) -| node[lab, pos=0.25, below]{$\ell_d$} (ema.south);
-\draw[arr] (ema.east) -- ++(0.6,0) |- (w.west);
-\draw[arr] (ema.east) -- ++(0.6,0) |- (pool.west);
-\draw[arr] (pool) -- node[lab, above]{images} (mixup);
-\draw[arr] (pool.south) |- node[lab, pos=0.75, above]{images} (gen.west);
-\draw[arr] (pool.north east) -- node[lab, sloped, above]{images} (adv.south west);
-\draw[arr] (w.north) -- ++(0,2.0) -| ([xshift=6mm]loss.north);
-\draw[arr] (adv.east) -| ([xshift=-6mm]loss.north);
-\draw[arr] (mixup.east) -- (loss.west);
-\draw[arr] (gen.east) -| (loss.south);
+\draw[arr] (x.east)--++(0.25,0)|-(fb.west);
+\draw[arr] (x.east)--++(0.25,0)|-(fd.west);
+\draw[arr] (fb.east)-|(ema.north);
+\draw[arr] (fd.east)-|(ema.south);
+\draw[arr] (ema.east)--(w.west);
+\draw[arr] (w.east)--(loss.west);
+\draw[arr] (ema.south)--(5.65,-1.85)-|(pool.north);
+\node[lab] at (3.75,-1.65) {biased loss history};
+\draw (pool.north east)--(2.05,-2.05)--(12.3,-2.05);
+\draw[arr] (4.1,-2.05)--(mixup.north);
+\draw[arr] (8.2,-2.05)--(gen.north);
+\draw[arr] (12.3,-2.05)--(adv.north);
+\node[lab] at (6.15,-2.05) {pool images};
+\draw (mixup.south)--(4.1,-5.05)--(14.7,-5.05)--(14.7,0);
+\draw (gen.south)--(8.2,-5.05);
+\draw (adv.south)--(12.3,-5.05);
+\draw[arr] (14.7,0)--(loss.east);
 \end{tikzpicture}
