@@ -14,7 +14,7 @@
 \input{figures/labels_bffhq_0.5pct.tex}
 \newcommand{\CE}{\operatorname{CE}}
 \title{PoolForge: Debiasing with a Persistent Failure Pool}
-\author{LI AN-SYU, BUI LE PHUONG, MENGTING LI, HRISHIKESH H PILLAI, CHIH-HSI CHEN}
+\author{{\small CHEN ZHIXI, HARI KUMAR PILLAI HRISHIKESH, BUI LE PHUONG, LI AN-SYU, MENGTING LI}}
 \begin{document}
 \maketitle
 
@@ -29,7 +29,7 @@ Learning from Failure (LfF)~\cite{nam2020lff} trains a biased classifier and ass
 
 PoolForge retains LfF and collects recurring high-loss examples in a class-wise memory pool. Decaying counts reduce the persistence of early mistakes, while an adaptive pool fraction allows the selected set to grow as more examples remain difficult. Three branches reuse this pool: same-class mixup interpolates existing views, a conditional editor seeks a different biased-model prediction, and PGD produces local adversarial variations. Their original task labels supervise the debiased classifier. The shared, persistent pool is the structural departure from LfF: it makes past failures available to three view generators as selection changes over training. The augmentation primitives themselves are borrowed.
 
-Our contributions are: (i) a persistent, adaptive failure pool that turns the biased model's loss history into a shared, class-wise source of hard examples; (ii) three complementary pool-driven views that diversify those examples at the pixel-interpolation, targeted-edit and adversarial levels; and (iii) an evaluation on three distinct shortcuts, an artificial color cue, class-linked image corruption and age-gender correlation in faces, with component ablations and view diagnostics. PoolForge improves average conflicting accuracy by 6.6 points over LfF and is strongest exactly where conflicting examples are scarcest.
+Our contributions are: (i) a persistent, adaptive failure pool that turns the biased model's loss history into a shared, class-wise source of hard examples; (ii) three complementary pool-driven views that diversify those examples at the pixel-interpolation, targeted-edit and adversarial levels; and (iii) an evaluation on three distinct shortcuts, an artificial color cue, class-linked image corruption and age-gender correlation in faces, with component ablations and view diagnostics. PoolForge improves average conflicting accuracy by 6.6 points over LfF and is strongest exactly where conflicting examples are scarcest. The GitHub repository is \url{https://github.com/hrishikeshhpillai/ShortcutLearning}.
 
 \section{Method}
 PoolForge trains biased $f_b$ and debiased $f_d$ from labeled images $(x_i,y_i)$. Bias labels define conflicting samples, $b\ne a(y_i)$, only for evaluation, where $a(y_i)$ is the class's dominant training bias. Figure~\ref{fig:flow} shows five components producing original-image weights, a persistent pool and three labeled views. Only $f_d$ is used at inference.
