@@ -68,6 +68,40 @@ Published numbers on the **same data** (LDD/DFA paper, Table 2: unbiased accurac
 | LfF | 61.89 ± 4.97 | 33.07 ± 0.77 | 62.2 ± 1.0 |
 | LDD | 81.73 ± 2.34 | 36.49 ± 1.79 | 63.87 ± 0.31 |
 
+## Baselines 2
+### BiasEnsemble
+
+| Implementation | Colored MNIST 0.50% | Colored MNIST 1.00% | Colored MNIST 2.00% | Colored MNIST 5.00% | BFFHQ 0.50% | BFFHQ 1.00% | BFFHQ 2.00% | BFFHQ 5.00% | Dogs & Cats 1.00% | Dogs & Cats 5.00% | BAR 1.00% | BAR 5.00% |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Official (LfF + BE) | 69.7 | 81.17 | 85.2 | 90.04 | 67.36 | 75.08 | 80.32 | 85.48 | 81.52 | 88.6 | 73.36 | 83.87 |
+| Ours (LfF + BE) | 71.72 | 81.16 | 85.64 | 90.3 | 69.6 | 75.8 | 80.8 | 87 | 81.2 | 88.8 | 74.87 | 85.06 |
+| Official (DisEnt + BE) | 71.34 | 82.11 | 84.66 | 90.15 | 67.56 | 73.48 | 79.48 | 84.84 | 80.74 | 86.84 | 73.29 | 84.96 |
+| Ours (DisEnt + BE) | 72.75 | 82.12 | 85.73 | 90.55 | 70.8 | 75.2 | 81.6 | 84.2 | 81.2 | 88.1 | 75.39 | 84.36 |
+
+### SelecMix
+
+| Implementation | Colored MNIST 1% | BBFHQ 0.50% | CIFAR10C 1% |
+|---|---:|---:|---:|
+| Official V+ | 83.55±0.42 | 71.60±1.91 | 41.87±0.14 |
+| Ours V+ | 82.84 | 68.4 | 41.61 |
+| Official L+ | 82.80±0.71 | 70.80±2.95 | 43.68±0.51 |
+| Ours L+ | 84.44 | 72.2 | 44.74 |
+
+### Echoes
+
+| Implementation | CelebA Smiling – Avg group acc | CelebA Smiling – Worst group acc | CelebA Narrow Eyes – Avg group acc | CelebA Narrow Eyes – Worst group acc | CelebA Arched Eyebrows – Avg group acc | CelebA Arched Eyebrows – Worst group acc | BBFHQ (0.5%) – Avg | BBFHQ (0.5%) – Worst | BBFHQ (0.5%) – Bias |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Official | 69.5±2.7 | 58.7±4.6 | 62.1±0.3 | 48.3±3.1 | 58.0±1.6 | 35.5±2.9 | 71.7 | 48.8 | 38.2 |
+| Ours | 69.6 | 59.2 | 58.6 | 42.4 | 58.7 | 47.2 | 68.6 | 55.2 | 24 |
+
+### DCWP
+
+| Implementation | CMNIST 0.01 | CIFAR10-C 0.01 | BFFHQ 0.005 |
+|---|---:|---:|---:|
+| Official | 95.98 | 41.56 | 60.35 |
+| Ours | 95.7 | 42.3 | 59.7 |
+
+
 ## Notes and caveats
 
 - **LfF** matches or slightly exceeds the published numbers on the same data. Its own paper reports higher numbers (74.01 / 41.37) on its own generated datasets, which are a different data copy.
